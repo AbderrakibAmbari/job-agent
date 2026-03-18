@@ -37,7 +37,7 @@ before anything is saved.
 
 ### 1. Clone the repo
 ```bash
-git clone https://github.com/YOUR_USERNAME/job-agent.git
+git clone https://github.com/AbderrakibAmbari/job-agent.git
 cd job-agent
 ```
 
@@ -56,7 +56,7 @@ pip install -r requirements.txt
 ### 4. Add your API key
 Create a `.env` file:
 ```
-ANTHROPIC_API_KEY=your_key_here
+ANTHROPIC_API_KEY=[I already did mine , if you want to create yours look for the api in anthropic]
 ```
 
 ### 5. Add your CV

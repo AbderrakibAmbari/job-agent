@@ -1,0 +1,20 @@
+# Environment & secrets
+.env
+venv/
+
+# Database (personal data)
+data/applications.db
+data/scheduler_log.txt
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+Desktop.ini

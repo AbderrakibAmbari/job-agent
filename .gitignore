@@ -1,20 +1,28 @@
-# Environment & secrets
+# ── Secrets & credentials ──────────────────────────
 .env
+data/linkedin_cookies.json
+
+# ── Personal data ───────────────────────────────────
+my_cv.txt
+config/
+outputs/
+cover_letters/
+research/
+
+# ── Database & logs ─────────────────────────────────
+data/
+
+# ── Python ──────────────────────────────────────────
 venv/
-
-# Database (personal data)
-data/applications.db
-data/scheduler_log.txt
-
-# Python cache
 __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
 
-# VS Code
-.vscode/
+# ── Claude Code session cache ────────────────────────
+.claude/
 
-# Windows
+# ── Editor & OS ─────────────────────────────────────
+.vscode/
 Thumbs.db
 Desktop.ini

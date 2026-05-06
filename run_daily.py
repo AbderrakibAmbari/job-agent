@@ -1,105 +1,85 @@
 import sys
 import os
+import logging
+import logging.handlers
 from datetime import datetime
 
-# Make sure we're in the right directory
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+os.makedirs("data", exist_ok=True)
 
-# Log file to track runs
 LOG_FILE = "data/scheduler_log.txt"
+RUN_LOG  = f"data/run_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
 
-def log(message):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"[{timestamp}] {message}"
-    print(line)
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
+
+class _Tee:
+    """Write every print() to both stdout and a file."""
+    def __init__(self, stream, path):
+        self._stream = stream
+        self._file   = open(path, "w", encoding="utf-8", buffering=1)
+
+    def write(self, data):
+        self._stream.write(data)
+        self._file.write(data)
+
+    def flush(self):
+        self._stream.flush()
+        self._file.flush()
+
+    def close(self):
+        self._file.close()
+
+    # forward everything else (isatty, fileno, …) to the real stream
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+
+sys.stdout = _Tee(sys.stdout, RUN_LOG)
+sys.stderr = _Tee(sys.stderr, RUN_LOG)
+
+# ── Logging setup ──────────────────────────────────
+_handler = logging.handlers.RotatingFileHandler(
+    LOG_FILE, maxBytes=1_000_000, backupCount=10, encoding="utf-8"
+)
+_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-8s %(message)s"))
+
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[
+        _handler,
+        logging.StreamHandler(sys.stdout),
+    ]
+)
+logger = logging.getLogger(__name__)
+
+
+def log(message: str):
+    """Console + file log (also captured by rotating handler above)."""
+    logger.info(message)
+
 
 def main():
-    log("🤖 Daily job agent started")
-
+    log("Daily job agent started")
     try:
         from dotenv import load_dotenv
-        from nodes.scraper import scrape_jobs
-        from nodes.cover_letter import generate_cover_letter
-        from nodes.tracker import init_db, save_application, get_all_applications
-        import sqlite3
-
+        from nodes.pipeline import run_pipeline
+        from nodes.tracker import backup_db
         load_dotenv()
-        init_db()
 
-        # ── Scrape jobs ────────────────────────────────
-        log("🔍 Scraping jobs...")
-        jobs = scrape_jobs(
-            job_title="Backend Developer",
-            location="Bochum",
-            max_jobs=10
-        )
-        log(f"📋 Found {len(jobs)} jobs")
+        backup_db()
 
-        if not jobs:
-            log("⚠️ No jobs found today. Stopping.")
-            return
+        log("Running pipeline: scrape (Indeed/Stepstone/XING/LinkedIn/Glassdoor) → validate → score → save...")
+        scored = run_pipeline(min_score=50)
 
-        # ── Load already applied jobs ──────────────────
-        conn = sqlite3.connect("data/applications.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT job_url FROM applications")
-        already_applied = set(row[0] for row in cursor.fetchall())
-        conn.close()
-
-        # ── Load CV ────────────────────────────────────
-        with open("my_cv.txt", "r", encoding="utf-8") as f:
-            cv = f.read()
-
-        # ── Process each new job ───────────────────────
-        new_jobs = [j for j in jobs if j["url"] not in already_applied]
-        log(f"🆕 New jobs (not yet applied): {len(new_jobs)}")
-
-        saved_count = 0
-        for job in new_jobs:
-            try:
-                log(f"✍️  Writing cover letter for {job['company']}...")
-                letter = generate_cover_letter(
-                    cv=cv,
-                    job_description=job["description"],
-                    company=job["company"],
-                    language="German"
-                )
-
-                # Save as PENDING — you review in dashboard
-                conn = sqlite3.connect("data/applications.db")
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO applications
-                    (company, job_title, platform, date_applied,
-                     cover_letter, job_url, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    job["company"],
-                    job["title"],
-                    job["platform"],
-                    datetime.now().strftime("%Y-%m-%d"),
-                    letter,
-                    job["url"],
-                    "Pending Review"   # ← you review these in dashboard
-                ))
-                conn.commit()
-                conn.close()
-
-                saved_count += 1
-                log(f"✅ Saved: {job['title']} @ {job['company']}")
-
-            except Exception as e:
-                log(f"❌ Error processing {job['company']}: {e}")
-                continue
-
-        log(f"🎯 Done! {saved_count} new applications ready for your review.")
-        log("👉 Open dashboard to review: streamlit run dashboard.py")
+        if scored:
+            log(f"{len(scored)} strong matches found and saved.")
+            log("Open dashboard: streamlit run dashboard.py")
+        else:
+            log("No strong matches today.")
 
     except Exception as e:
-        log(f"💥 Fatal error: {e}")
+        logger.exception("Fatal error: %s", e)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

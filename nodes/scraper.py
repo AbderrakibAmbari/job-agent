@@ -239,24 +239,6 @@ JUNIOR_TERMS = [
     "Trainee IT",
 ]
 
-WERKSTUDENT_TERMS = [
-    "Werkstudent Softwareentwicklung",
-    "Werkstudent Backend",
-    "Werkstudent Full Stack",
-    "Werkstudent Python",
-    "Werkstudent Java",
-    "Werkstudent IT",
-    "Werkstudent DevOps",
-    "Werkstudent Cloud",
-    "Werkstudent Data Science",
-    "Werkstudent Machine Learning",
-    "Werkstudent Webentwicklung",
-    "Werkstudent Kotlin",
-    "Werkstudent TypeScript",
-    "Werkstudent QA",
-    "Werkstudent AI",
-]
-
 PRAKTIKUM_TERMS = [
     "Praktikum Softwareentwicklung",
     "Praktikum Backend",
@@ -291,10 +273,36 @@ SAP_TRAINING_TERMS = [
     "Absolventenprogramm IT",
 ]
 
-SEARCH_TERMS = JUNIOR_TERMS + WERKSTUDENT_TERMS + PRAKTIKUM_TERMS + SAP_TRAINING_TERMS
+# Top-priority terms: Trainee programs and Vollzeit/Direkteinstieg roles
+# These are run first on every platform so they dominate the limited search budget.
+TRAINEE_VOLLZEIT_TERMS = [
+    "Trainee Softwareentwicklung",
+    "Trainee Software Engineer",
+    "Trainee IT",
+    "Trainee IT Beratung",
+    "Trainee IT Consulting",
+    "Graduate Programme Software",
+    "Graduate Software Engineer",
+    "Absolventenprogramm IT",
+    "Absolventenprogramm Softwareentwicklung",
+    "Direkteinstieg Softwareentwicklung",
+    "Direkteinstieg IT Beratung",
+    "Direkteinstieg Software Engineer",
+    "Young Professional Software",
+    "Young Professional IT",
+    "Vollzeit Softwareentwickler",
+    "Vollzeit Backend Entwickler",
+    "Vollzeit Full Stack Entwickler",
+    "Festanstellung Softwareentwickler",
+    "Anwendungsentwickler Vollzeit",
+    "Berufseinstieg Softwareentwicklung",
+]
 
-# Subset used by each Playwright platform — front-loaded by priority
-PLATFORM_SEARCH_TERMS = JUNIOR_TERMS[:15] + WERKSTUDENT_TERMS[:5] + PRAKTIKUM_TERMS[:5]
+SEARCH_TERMS = TRAINEE_VOLLZEIT_TERMS + JUNIOR_TERMS + PRAKTIKUM_TERMS + SAP_TRAINING_TERMS
+
+# Subset used by each Playwright platform — front-loaded by priority.
+# Trainee/Vollzeit first, then top Junior terms, then a small Praktikum tail.
+PLATFORM_SEARCH_TERMS = TRAINEE_VOLLZEIT_TERMS[:12] + JUNIOR_TERMS[:14] + PRAKTIKUM_TERMS[:6]
 
 # ── Target Regions ─────────────────────────────────
 REGIONS = [
@@ -608,8 +616,8 @@ def _scrape_platform(platform: str, max_per_search: int = 25) -> tuple:
                     break
 
                 for term in terms:
-                    # Werkstudent and Praktikum: NRW only
-                    if term.startswith(("Werkstudent", "Praktikum")) and region != "Nordrhein-Westfalen":
+                    # Praktikum: NRW only (local internships)
+                    if term.startswith("Praktikum") and region != "Nordrhein-Westfalen":
                         continue
 
                     added = exp_filtered = deprioritized = parse_errors = no_data = 0
@@ -770,8 +778,8 @@ def scrape_arbeitsagentur(terms: list, regions: list) -> tuple:
 
     for region in regions:
         for term in terms:
-            # Werkstudent and Praktikum: NRW only
-            if term.startswith(("Werkstudent", "Praktikum")) and region != "Nordrhein-Westfalen":
+            # Praktikum: NRW only (local internships)
+            if term.startswith("Praktikum") and region != "Nordrhein-Westfalen":
                 continue
 
             added = exp_filtered = deprioritized = errors = 0
@@ -848,7 +856,8 @@ def scrape_arbeitsagentur(terms: list, regions: list) -> tuple:
 
 
 def _run_arbeitsagentur() -> tuple:
-    ba_terms = SAP_TRAINING_TERMS + JUNIOR_TERMS[:10]
+    # Lead with Trainee/Vollzeit (top priority), then SAP/Training, then top Juniors.
+    ba_terms = TRAINEE_VOLLZEIT_TERMS + SAP_TRAINING_TERMS + JUNIOR_TERMS[:10]
     print(f"\n[BA] Scraping Arbeitsagentur API ({len(ba_terms)} terms x {len(REGIONS)} regions)...")
     return scrape_arbeitsagentur(ba_terms, REGIONS)
 

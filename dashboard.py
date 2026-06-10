@@ -9,7 +9,7 @@ from nodes.tracker import (
     update_status, delete_application, update_matched_job_cover_letter,
     update_matched_job_company, update_matched_job_applied,
     get_applied_status, get_applied_statuses, save_application,
-    get_not_matched_jobs,
+    get_not_matched_jobs, get_scrape_dates,
 )
 import os
 
@@ -176,8 +176,50 @@ st.markdown("""
     a.apply-link:hover {
         background: #2d4f7c;
     }
+
+    /* Active scrape-day chip (primary button override) */
+    .stButton > button[kind="primary"] {
+        background-color: #1a3a2c !important;
+        color: #3fb950 !important;
+        border: 1px solid #3fb950 !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background-color: #25513c !important;
+        color: #ffffff !important;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+
+def render_date_chips(state_key: str, source: str, label: str, max_chips: int = 7) -> str:
+    """Render a row of clickable scrape-day chips. Returns the selected YYYY-MM-DD string.
+    Active day is highlighted green via the primary-button CSS override above.
+    """
+    run_dates = get_scrape_dates(source=source, limit=14)
+    if state_key not in st.session_state:
+        st.session_state[state_key] = (
+            datetime.strptime(run_dates[0][0], "%Y-%m-%d").date()
+            if run_dates else datetime.now().date()
+        )
+
+    if run_dates:
+        st.markdown(f"**{label}**")
+        chips = run_dates[:max_chips]
+        cols = st.columns(len(chips))
+        for i, (d_str, n) in enumerate(chips):
+            d_obj = datetime.strptime(d_str, "%Y-%m-%d").date()
+            is_active = (d_obj == st.session_state[state_key])
+            with cols[i]:
+                if st.button(
+                    f"📅 {d_str[5:]}\n{n} jobs",
+                    key=f"{state_key}_chip_{d_str}",
+                    type="primary" if is_active else "secondary",
+                    use_container_width=True,
+                ):
+                    st.session_state[state_key] = d_obj
+                    st.rerun()
+
+    return st.session_state[state_key].strftime("%Y-%m-%d")
 
 # ── Status config ──────────────────────────────────
 STATUS_OPTIONS = [
@@ -395,30 +437,18 @@ elif page == "🔍  Today's Matches":
     st.markdown(f"📅 {RUN_DATE}")
     st.markdown("---")
 
-    col_d1, col_d2, _ = st.columns([1, 1, 2])
-    with col_d1:
-        selected_date = st.date_input("View matches from", value=datetime.now())
-    with col_d2:
-        new_only = st.checkbox("New jobs only (not seen before)", value=True)
-    selected_date_str = selected_date.strftime("%Y-%m-%d")
+    selected_date_str = render_date_chips(
+        state_key="td_selected_date",
+        source="matched",
+        label="📅 Days with scrape runs (click to jump — active day is green):",
+    )
+    new_only = st.checkbox("New jobs only (not seen before)", value=True)
 
     matched = load_matched_jobs(selected_date_str, new_only=new_only)
 
     if not matched:
         st.info(f"📭 No matched jobs for {selected_date_str}. Run `python main.py` to scrape!")
     else:
-        # Category filter (job_category is column index 17)
-        all_cats = sorted(set((j[17] if len(j) > 17 and j[17] else "Other") for j in matched))
-        if len(all_cats) > 1:
-            sel_cats = st.multiselect(
-                "Filter by category",
-                options=all_cats,
-                default=all_cats,
-                key="cat_filter",
-            )
-            if sel_cats:
-                matched = [j for j in matched if (j[17] if len(j) > 17 and j[17] else "Other") in sel_cats]
-
         # Fetch all applied flags in one query instead of one per job
         applied_map = get_applied_statuses([j[0] for j in matched])
 
@@ -613,10 +643,11 @@ elif page == "❌  Not Matched":
     st.markdown("Jobs the AI scored but fell below the match threshold. Review these — some may still be worth applying to.")
     st.markdown("---")
 
-    col_d1, _ = st.columns([1, 3])
-    with col_d1:
-        nm_date = st.date_input("View from date", value=datetime.now(), key="nm_date")
-    nm_date_str = nm_date.strftime("%Y-%m-%d")
+    nm_date_str = render_date_chips(
+        state_key="nm_selected_date",
+        source="not_matched",
+        label="📅 Days with scrape runs (click to jump — active day is green):",
+    )
 
     not_matched = load_not_matched_jobs(nm_date_str)
 

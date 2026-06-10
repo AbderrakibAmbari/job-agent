@@ -1,13 +1,15 @@
 """
 Shared pipeline: scrape -> validate -> score -> save.
 Both run_daily.py (automated) and main.py (interactive) build on these steps.
+
+`score_and_filter_jobs` persists results to the DB incrementally as each job
+is scored, so a rate-limit timeout or Ctrl+C still keeps partial progress.
 """
 from nodes.scraper import scrape_jobs, _url_key
 from nodes.validator import validate_jobs
 from nodes.analyzer import score_and_filter_jobs
 from nodes.tracker import (
-    init_db, save_matched_jobs, save_not_matched_jobs,
-    get_known_urls, get_known_title_keys, _title_company_key,
+    init_db, get_known_urls, get_known_title_keys, _title_company_key,
 )
 
 
@@ -17,8 +19,8 @@ def _job_title_key(job: dict) -> str:
 
 def run_pipeline(min_score: int = 70) -> list:
     """
-    Run the full job-matching pipeline and persist results.
-    Returns the list of scored jobs that passed min_score.
+    Run the full job-matching pipeline. Persistence happens inside
+    score_and_filter_jobs (incremental). Returns the matched list for logging.
     """
     init_db()
 
@@ -34,11 +36,9 @@ def run_pipeline(min_score: int = 70) -> list:
     alive = [j for j in jobs if j.get("link_status") != "expired"]
     expired = len(jobs) - len(alive)
 
-    # Dedup pass 1 — exact URL match against DB
     known_urls = get_known_urls()
     after_url = [j for j in alive if _url_key(j.get("url", "")) not in known_urls]
 
-    # Dedup pass 2 — normalized title+company match (catches same job from different platform/URL)
     known_titles = get_known_title_keys()
     new_jobs = [j for j in after_url if _job_title_key(j) not in known_titles]
 
@@ -55,12 +55,11 @@ def run_pipeline(min_score: int = 70) -> list:
         print("[pipeline] Nothing new to score today.")
         return []
 
-    matched, not_matched = score_and_filter_jobs(cv=cv, jobs=new_jobs, min_score=min_score)
+    try:
+        matched, not_matched = score_and_filter_jobs(cv=cv, jobs=new_jobs, min_score=min_score)
+    except KeyboardInterrupt:
+        print("[pipeline] Interrupted — partial results already persisted in DB.")
+        raise
+
     print(f"[pipeline] Scored: {len(new_jobs)}  |  Matched (>={min_score}%): {len(matched)}  |  Below threshold: {len(not_matched)}")
-
-    if matched:
-        save_matched_jobs(matched)
-    if not_matched:
-        save_not_matched_jobs(not_matched)
-
     return matched

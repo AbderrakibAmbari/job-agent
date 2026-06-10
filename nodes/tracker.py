@@ -365,6 +365,24 @@ def get_known_title_keys() -> set:
     return {_title_company_key(t, c) for t, c in rows if t}
 
 
+def get_scrape_dates(source: str = "matched", limit: int = 30) -> list:
+    """Distinct (date_found, count) tuples — newest first.
+
+    source = "matched"  -> matched_jobs
+    source = "not_matched" -> not_matched_jobs
+    """
+    table = "matched_jobs" if source == "matched" else "not_matched_jobs"
+    with _conn() as conn:
+        rows = conn.execute(f"""
+            SELECT date_found, COUNT(*) FROM {table}
+            WHERE date_found IS NOT NULL AND date_found != ''
+            GROUP BY date_found
+            ORDER BY date_found DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+    return [(d, n) for d, n in rows]
+
+
 def get_all_applications() -> list:
     with _conn() as conn:
         return conn.execute(

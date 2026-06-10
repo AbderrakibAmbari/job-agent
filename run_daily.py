@@ -23,7 +23,7 @@ def main():
         load_dotenv()
 
         log("Running pipeline: scrape (Indeed/Stepstone/XING/LinkedIn/Glassdoor) → validate → score → save...")
-        scored = run_pipeline(max_jobs=40, min_score=50)
+        scored = run_pipeline(min_score=50)
 
         if scored:
             log(f"{len(scored)} strong matches found and saved.")

@@ -2,6 +2,7 @@ import logging
 import json
 import re
 import functools
+from pathlib import Path
 import anthropic
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
@@ -15,6 +16,20 @@ from tenacity import (
 load_dotenv()
 logger = logging.getLogger(__name__)
 llm = ChatAnthropic(model="claude-haiku-4-5-20251001")
+
+
+def _load_profile_text() -> str:
+    """Read config/profile.yaml as raw text for inclusion in the scoring prompt.
+    Re-read fresh each scoring run so edits to profile.yaml take effect without restart.
+    """
+    p = Path("config/profile.yaml")
+    if not p.exists():
+        return ""
+    try:
+        return p.read_text(encoding="utf-8")
+    except Exception as e:
+        logger.warning("Could not load profile.yaml: %s", e)
+        return ""
 
 
 def _is_rate_limit_error(e: BaseException) -> bool:
@@ -162,11 +177,18 @@ Respond ONLY with this JSON, no other text:
 
 
 def _system_content(cv: str) -> list:
+    profile_text = _load_profile_text()
+    profile_block = (
+        f"\nMASTER SKILLS & PROJECT POOL (config/profile.yaml — pick a subset per job,\n"
+        f"never invent skills the candidate doesn't have):\n{profile_text}\n"
+        if profile_text else ""
+    )
     return [{
         "type": "text",
         "text": (
             "You are an expert technical recruiter helping a candidate find the right job.\n\n"
-            f"CANDIDATE PROFILE:\n{cv}\n\n"
+            f"CANDIDATE PROFILE (CV):\n{cv}\n"
+            f"{profile_block}\n"
             f"SCORING RULES:{_SCORING_RULES}"
         ),
         "cache_control": {"type": "ephemeral"},

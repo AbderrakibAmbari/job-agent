@@ -9,6 +9,29 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from playwright.sync_api import sync_playwright
 
+from nodes.tracker import get_last_scrape_date
+
+# Max recency window we'll request from any platform (most reject larger values)
+MAX_RECENCY_DAYS = 30
+
+
+def _compute_days_window() -> int:
+    """Days between the last scrape (any platform) and today.
+
+    Read once at the start of scrape_jobs() and passed into every build_url
+    so each platform's recency filter matches the gap since the last run.
+    Falls back to 1 day if there is no history.
+    """
+    last = get_last_scrape_date()
+    if not last:
+        return 1
+    try:
+        last_dt = datetime.strptime(last, "%Y-%m-%d").date()
+    except ValueError:
+        return 1
+    delta = (datetime.now().date() - last_dt).days
+    return max(1, min(delta, MAX_RECENCY_DAYS))
+
 LINKEDIN_COOKIE_FILE = "data/linkedin_cookies.json"
 
 logger = logging.getLogger(__name__)
@@ -55,6 +78,11 @@ DEPRIORITIZE_TITLES = [
     "manager", "director", "architect",
     "sales", "recruiting", "customer support", "call center",
     "callcenter", "sachbearbeiter", "vertrieb",
+    # Paused: candidate is a graduate, not seeking student-level roles right now.
+    # Remove "werkstudent" / "praktikum" / "praktikant" to re-enable.
+    "werkstudent",
+    "praktikum",
+    "praktikant",
 ]
 
 # "consultant"/"berater" are only deprioritized when there's no junior/entry indicator
@@ -259,7 +287,7 @@ PRAKTIKUM_TERMS = [
 
 # Used primarily for the Arbeitsagentur API (many SAP/training roles only listed there)
 SAP_TRAINING_TERMS = [
-    "SAP Praktikant",
+    # "SAP Praktikant",  # paused with Praktikum
     "Junior SAP Berater",
     "Junior SAP Consultant",
     "Trainee SAP Beratung",
@@ -298,33 +326,46 @@ TRAINEE_VOLLZEIT_TERMS = [
     "Berufseinstieg Softwareentwicklung",
 ]
 
-SEARCH_TERMS = TRAINEE_VOLLZEIT_TERMS + JUNIOR_TERMS + PRAKTIKUM_TERMS + SAP_TRAINING_TERMS
+# Praktikum paused: PRAKTIKUM_TERMS kept defined for easy re-enable, but
+# excluded from the active search slates below.
+SEARCH_TERMS = TRAINEE_VOLLZEIT_TERMS + JUNIOR_TERMS + SAP_TRAINING_TERMS
 
 # Subset used by each Playwright platform — front-loaded by priority.
-# Trainee/Vollzeit first, then top Junior terms, then a small Praktikum tail.
-PLATFORM_SEARCH_TERMS = TRAINEE_VOLLZEIT_TERMS[:12] + JUNIOR_TERMS[:14] + PRAKTIKUM_TERMS[:6]
+# Trainee/Vollzeit first, then top Junior terms.
+PLATFORM_SEARCH_TERMS = TRAINEE_VOLLZEIT_TERMS[:14] + JUNIOR_TERMS[:18]
 
 # ── Target Regions ─────────────────────────────────
+# All 16 German Bundesländer, ordered by tech-hub priority so the
+# top-priority terms hit the most relevant regions first under the
+# 600s/platform budget.
 REGIONS = [
     "Nordrhein-Westfalen",
-    "Hessen",
-    "Saarland",
-    "Rheinland-Pfalz",
-    "Thüringen",
-    "Niedersachsen",
-    "Bremen",
+    "Berlin",
+    "Bayern",
+    "Baden-Württemberg",
     "Hamburg",
+    "Hessen",
+    "Niedersachsen",
     "Sachsen",
+    "Rheinland-Pfalz",
+    "Schleswig-Holstein",
+    "Brandenburg",
+    "Saarland",
+    "Thüringen",
+    "Bremen",
+    "Sachsen-Anhalt",
+    "Mecklenburg-Vorpommern",
 ]
 
 # ── Platform Configurations ────────────────────────
 PLATFORM_CONFIGS = {
     "Indeed": {
-        "build_url": lambda term, region, n: (
+        "build_url": lambda term, region, n, days: (
             f"https://de.indeed.com/jobs"
             f"?q={term.replace(' ', '+')}"
             f"&l={region.replace(' ', '+')}"
             f"&limit={n}"
+            f"&fromage={days}"
         ),
         "cookie_selector": "button#onetrust-accept-btn-handler",
         "card_selector": "div.job_seen_beacon",
@@ -365,10 +406,11 @@ PLATFORM_CONFIGS = {
         "quick_apply_selector": "[data-testid='indeedApply']",
     },
     "Stepstone": {
-        "build_url": lambda term, region, n: (
+        "build_url": lambda term, region, n, days: (
             f"https://www.stepstone.de/jobs"
             f"/{term.replace(' ', '-')}"
             f"/in-{region.replace(' ', '-')}"
+            f"?wp={days}"
         ),
         "cookie_selector": "button[id='ccmgt_explicit_accept']",
         "card_selector": "article[data-at='job-item'], article[class*='job'], div[class*='JobCard'], article",
@@ -407,7 +449,8 @@ PLATFORM_CONFIGS = {
         "quick_apply_selector": "[data-testid='quick-apply'], .quick-apply",
     },
     "XING": {
-        "build_url": lambda term, region, n: (
+        # XING has no reliable URL date filter — relies on the tracker's URL/title dedup.
+        "build_url": lambda term, region, n, days: (
             f"https://www.xing.com/jobs/search"
             f"?keywords={term.replace(' ', '+')}"
             f"&location={region.replace(' ', '+')}"
@@ -441,11 +484,11 @@ PLATFORM_CONFIGS = {
         "quick_apply_selector": "[data-testid='quick-apply'], .quick-apply",
     },
     "LinkedIn": {
-        "build_url": lambda term, region, n: (
+        "build_url": lambda term, region, n, days: (
             f"https://www.linkedin.com/jobs/search/"
             f"?keywords={term.replace(' ', '%20')}"
             f"&location={region.replace(' ', '%20')}%2C%20Deutschland"
-            f"&f_TPR=r86400"
+            f"&f_TPR=r{days * 86400}"
         ),
         "cookie_selector": None,
         "card_selector": "div.base-card",
@@ -469,10 +512,11 @@ PLATFORM_CONFIGS = {
         "quick_apply_selector": None,
     },
     "Glassdoor": {
-        "build_url": lambda term, region, n: (
+        "build_url": lambda term, region, n, days: (
             f"https://www.glassdoor.de/Job/jobs.htm"
             f"?sc.keyword={term.replace(' ', '+')}"
             f"&locT=N&locName={region.replace(' ', '+')}"
+            f"&fromAge={days}"
         ),
         "cookie_selector": "button[data-test='accept-btn']",
         "card_selector": "li[data-test='jobListing'], li.react-job-listing",
@@ -580,7 +624,7 @@ def _build_job(card, config: dict, region: str, platform: str) -> tuple:
     }, "ok"
 
 
-def _scrape_platform(platform: str, max_per_search: int = 25) -> tuple:
+def _scrape_platform(platform: str, days_window: int = 1, max_per_search: int = 25) -> tuple:
     """Generic platform scraper. Returns (jobs_list, search_stats_list)."""
     config      = PLATFORM_CONFIGS[platform]
     jobs        = []
@@ -608,14 +652,16 @@ def _scrape_platform(platform: str, max_per_search: int = 25) -> tuple:
             page.set_extra_http_headers({"User-Agent": random.choice(_USER_AGENTS)})
 
             platform_dead = False
-            for region in REGIONS:
+            # Term outer / region inner: top-priority terms sweep all 16
+            # Bundesländer before lower-priority terms consume the budget.
+            for term in terms:
                 if platform_dead:
                     break
                 if time.time() - start_time > PLATFORM_TIMEOUT:
                     print(f"  [timeout] {platform}: timeout reached, stopping early")
                     break
 
-                for term in terms:
+                for region in REGIONS:
                     # Praktikum: NRW only (local internships)
                     if term.startswith("Praktikum") and region != "Nordrhein-Westfalen":
                         continue
@@ -624,7 +670,7 @@ def _scrape_platform(platform: str, max_per_search: int = 25) -> tuple:
                     cards_found = 0
 
                     try:
-                        url = config["build_url"](term, region, max_per_search)
+                        url = config["build_url"](term, region, max_per_search, days_window)
                         page.goto(url, timeout=20000)
 
                         for indicator in config.get("login_indicators", []):
@@ -690,11 +736,12 @@ def _scrape_platform(platform: str, max_per_search: int = 25) -> tuple:
                         break
 
                     # Bail-out #2 — platform truly dead (bot block, no DOM at all):
-                    # 10 consecutive zero-card searches. Higher threshold so that terms
-                    # that simply have no results (e.g. Praktikum on LinkedIn) don't
-                    # kill the whole platform run.
-                    if len(search_stats) >= 10 and all(s["cards_found"] == 0 for s in search_stats[-10:]):
-                        print(f"  [warn] {platform}: 10 consecutive zero-card searches -- platform likely blocked, skipping")
+                    # 32 consecutive zero-card searches. Threshold sized for term-outer
+                    # loop (16 regions × ~2 terms) so a single dead-recall term doesn't
+                    # kill the platform, but a real bot block (every search returns 0)
+                    # still trips it quickly.
+                    if len(search_stats) >= 32 and all(s["cards_found"] == 0 for s in search_stats[-32:]):
+                        print(f"  [warn] {platform}: 32 consecutive zero-card searches -- platform likely blocked, skipping")
                         platform_dead = True
                         break
 
@@ -765,7 +812,7 @@ def _print_summary(all_stats: list) -> None:
     _get_scrape_logger().info(output)
 
 
-def scrape_arbeitsagentur(terms: list, regions: list) -> tuple:
+def scrape_arbeitsagentur(terms: list, regions: list, days_window: int = 1) -> tuple:
     """Scrape Bundesagentur für Arbeit via public REST API. No Playwright needed."""
     import requests
 
@@ -791,6 +838,7 @@ def scrape_arbeitsagentur(terms: list, regions: list) -> tuple:
                     "berufsfeld": "Informatik",
                     "page": 1,
                     "size": 25,
+                    "veroeffentlichtseit": days_window,
                 }
                 r = requests.get(BA_URL, headers=headers, params=params, timeout=10)
                 r.raise_for_status()
@@ -855,11 +903,11 @@ def scrape_arbeitsagentur(terms: list, regions: list) -> tuple:
     return jobs, stats
 
 
-def _run_arbeitsagentur() -> tuple:
+def _run_arbeitsagentur(days_window: int = 1) -> tuple:
     # Lead with Trainee/Vollzeit (top priority), then SAP/Training, then top Juniors.
     ba_terms = TRAINEE_VOLLZEIT_TERMS + SAP_TRAINING_TERMS + JUNIOR_TERMS[:10]
     print(f"\n[BA] Scraping Arbeitsagentur API ({len(ba_terms)} terms x {len(REGIONS)} regions)...")
-    return scrape_arbeitsagentur(ba_terms, REGIONS)
+    return scrape_arbeitsagentur(ba_terms, REGIONS, days_window=days_window)
 
 
 def scrape_jobs() -> list:
@@ -867,11 +915,13 @@ def scrape_jobs() -> list:
     all_stats: list = []
     platforms = list(PLATFORM_CONFIGS.keys())
 
+    days_window = _compute_days_window()
+    print(f"\n[scrape] Recency window: last {days_window} day(s) since last scrape")
     print(f"\n[scrape] Starting {len(platforms)} Playwright platforms + Arbeitsagentur API in parallel...")
 
     with ThreadPoolExecutor(max_workers=4) as executor:
-        futures: dict = {executor.submit(_scrape_platform, p): p for p in platforms}
-        futures[executor.submit(_run_arbeitsagentur)] = "Arbeitsagentur"
+        futures: dict = {executor.submit(_scrape_platform, p, days_window): p for p in platforms}
+        futures[executor.submit(_run_arbeitsagentur, days_window)] = "Arbeitsagentur"
 
         for future in as_completed(futures):
             platform = futures[future]

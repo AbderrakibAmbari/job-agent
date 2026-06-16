@@ -10,6 +10,7 @@ from nodes.tracker import (
     update_matched_job_company, update_matched_job_applied,
     get_applied_status, get_applied_statuses, save_application,
     get_not_matched_jobs, get_scrape_dates,
+    promote_not_matched_to_matched,
 )
 import os
 
@@ -104,7 +105,7 @@ st.markdown("""
         color: #ffffff;
     }
 
-    /* Region badge */
+    /* Region badge — 4 macro-region colors for all 16 Bundesländer */
     .badge {
         display: inline-block;
         padding: 2px 10px;
@@ -113,10 +114,10 @@ st.markdown("""
         font-weight: 600;
         margin: 2px;
     }
-    .badge-nrw    { background: #1a3a5c; color: #58a6ff; }
-    .badge-hessen { background: #1a3a2c; color: #3fb950; }
-    .badge-saar   { background: #3a1a3a; color: #bc8cff; }
-    .badge-rlp    { background: #3a2a1a; color: #f0883e; }
+    .badge-west   { background: #1a3a5c; color: #58a6ff; }  /* NRW, Hessen, RLP, Saar */
+    .badge-north  { background: #143a3a; color: #56d4d4; }  /* HH, HB, NDS, SH */
+    .badge-east   { background: #2a1a4a; color: #a78bfa; }  /* BE, BB, MV, SN, ST, TH */
+    .badge-south  { background: #1a3a2c; color: #3fb950; }  /* BY, BW */
     .badge-other  { background: #2d2d2d; color: #8b949e; }
 
     /* Score bar */
@@ -236,18 +237,35 @@ STATUS_COLORS = {
 }
 
 REGION_BADGE = {
-    "nordrhein": ("NRW", "badge-nrw"),
-    "westfalen": ("NRW", "badge-nrw"),
-    "nrw":       ("NRW", "badge-nrw"),
-    "hessen":    ("Hessen", "badge-hessen"),
-    "saarland":  ("Saarland", "badge-saar"),
-    "rheinland": ("RLP", "badge-rlp"),
-    "pfalz":     ("RLP", "badge-rlp"),
-    "thüringen": ("TH", "badge-other"),
-    "niedersachsen": ("NDS", "badge-other"),
-    "bremen":    ("HB", "badge-other"),
-    "hamburg":   ("HH", "badge-other"),
-    "sachsen":   ("SN", "badge-other"),
+    # West
+    "nordrhein": ("NRW",     "badge-west"),
+    "westfalen": ("NRW",     "badge-west"),
+    "nrw":       ("NRW",     "badge-west"),
+    "hessen":    ("Hessen",  "badge-west"),
+    "rheinland": ("RLP",     "badge-west"),
+    "pfalz":     ("RLP",     "badge-west"),
+    "saarland":  ("Saar",    "badge-west"),
+    # North
+    "hamburg":        ("HH",  "badge-north"),
+    "bremen":         ("HB",  "badge-north"),
+    "niedersachsen":  ("NDS", "badge-north"),
+    "schleswig":      ("SH",  "badge-north"),
+    "holstein":       ("SH",  "badge-north"),
+    # East
+    "berlin":            ("Berlin", "badge-east"),
+    "brandenburg":       ("BB",     "badge-east"),
+    "mecklenburg":       ("MV",     "badge-east"),
+    "vorpommern":        ("MV",     "badge-east"),
+    "sachsen-anhalt":    ("ST",     "badge-east"),
+    "sachsen anhalt":    ("ST",     "badge-east"),
+    "thüringen":         ("TH",     "badge-east"),
+    "sachsen":           ("SN",     "badge-east"),
+    # South
+    "bayern":           ("Bayern", "badge-south"),
+    "münchen":          ("Bayern", "badge-south"),
+    "baden-württemberg":("BaWü",   "badge-south"),
+    "baden württemberg":("BaWü",   "badge-south"),
+    "württemberg":      ("BaWü",   "badge-south"),
 }
 
 def get_region_badge(location: str) -> str:
@@ -256,14 +274,6 @@ def get_region_badge(location: str) -> str:
         if key in loc_lower:
             return f'<span class="badge {css}">{label}</span>'
     return f'<span class="badge badge-other">{location[:15]}</span>'
-
-def classify_job_type(title: str) -> str:
-    t = title.lower()
-    if "werkstudent" in t or "working student" in t:
-        return "Werkstudent"
-    if "praktikum" in t or "praktikant" in t or "intern" in t:
-        return "Praktikum"
-    return "Fulltime"
 
 def get_score_color(score: int) -> str:
     if score >= 85: return "#3fb950"
@@ -306,10 +316,6 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    n_fulltime    = sum(1 for j in matched if classify_job_type(j[1]) == "Fulltime")
-    n_werkstudent = sum(1 for j in matched if classify_job_type(j[1]) == "Werkstudent")
-    n_praktikum   = sum(1 for j in matched if classify_job_type(j[1]) == "Praktikum")
-
     st.markdown(f"""
     <div class="stat-card">
         <div class="stat-label">Total Applications</div>
@@ -318,18 +324,6 @@ with st.sidebar:
     <div class="stat-card">
         <div class="stat-label">Today's Matches</div>
         <div class="stat-value">{len(matched)}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">💼 Fulltime</div>
-        <div class="stat-value">{n_fulltime}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">🎓 Werkstudent</div>
-        <div class="stat-value">{n_werkstudent}</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-label">📚 Praktikum</div>
-        <div class="stat-value">{n_praktikum}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -349,7 +343,7 @@ with st.sidebar:
 # ══════════════════════════════════════════════════
 if page == "📊  My Applications":
 
-    st.title("📊 My Applications")
+    st.title("My Applications")
     st.markdown("---")
 
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -359,11 +353,11 @@ if page == "📊  My Applications":
         "job_url", "follow_up_date"
     ]) if apps else pd.DataFrame()
 
-    with col1: st.metric("📊 Total",     len(df_apps))
-    with col2: st.metric("🔵 Sent",      len(df_apps[df_apps["status"] == "Sent"])      if not df_apps.empty else 0)
-    with col3: st.metric("🟡 Waiting",   len(df_apps[df_apps["status"] == "Waiting"])   if not df_apps.empty else 0)
-    with col4: st.metric("🟢 Interview", len(df_apps[df_apps["status"] == "Interview"]) if not df_apps.empty else 0)
-    with col5: st.metric("⭐ Offer",     len(df_apps[df_apps["status"] == "Offer"])     if not df_apps.empty else 0)
+    with col1: st.metric("Total",     len(df_apps))
+    with col2: st.metric("Sent",      len(df_apps[df_apps["status"] == "Sent"])      if not df_apps.empty else 0)
+    with col3: st.metric("Waiting",   len(df_apps[df_apps["status"] == "Waiting"])   if not df_apps.empty else 0)
+    with col4: st.metric("Interview", len(df_apps[df_apps["status"] == "Interview"]) if not df_apps.empty else 0)
+    with col5: st.metric("Offer",     len(df_apps[df_apps["status"] == "Offer"])     if not df_apps.empty else 0)
 
     st.markdown("---")
 
@@ -396,13 +390,13 @@ if page == "📊  My Applications":
             ):
                 col_info, col_actions = st.columns([2, 1])
                 with col_info:
-                    st.markdown(f"**🏢 Company:** {row['company']}")
-                    st.markdown(f"**💼 Role:** {row['job_title']}")
-                    st.markdown(f"**🌐 Platform:** {row['platform']}")
-                    st.markdown(f"**📅 Applied:** {row['date_applied']}")
-                    st.markdown(f"**📌 Status:** {icon} {row['status']}")
+                    st.markdown(f"**Company** &nbsp; {row['company']}", unsafe_allow_html=True)
+                    st.markdown(f"**Role** &nbsp; {row['job_title']}", unsafe_allow_html=True)
+                    st.markdown(f"**Platform** &nbsp; {row['platform']}", unsafe_allow_html=True)
+                    st.markdown(f"**Applied** &nbsp; {row['date_applied']}", unsafe_allow_html=True)
+                    st.markdown(f"**Status** &nbsp; {icon} {row['status']}", unsafe_allow_html=True)
                     if row["job_url"]:
-                        st.markdown(f"**🔗 Link:** [Open job posting]({row['job_url']})")
+                        st.markdown(f"**Link** &nbsp; [Open job posting]({row['job_url']})", unsafe_allow_html=True)
 
                 with col_actions:
                     new_status = st.selectbox(
@@ -424,7 +418,7 @@ if page == "📊  My Applications":
 
                 if row["cover_letter"]:
                     st.markdown("---")
-                    st.markdown("**📝 Cover Letter:**")
+                    st.markdown("**Cover Letter**")
                     st.text_area("Cover Letter", value=row["cover_letter"], height=200,
                                  key=f"cl_{row['id']}", label_visibility="collapsed")
 
@@ -433,14 +427,13 @@ if page == "📊  My Applications":
 # ══════════════════════════════════════════════════
 elif page == "🔍  Today's Matches":
 
-    st.title("🔍 Today's Matched Jobs")
-    st.markdown(f"📅 {RUN_DATE}")
+    st.title("Today's Matched Jobs")
     st.markdown("---")
 
     selected_date_str = render_date_chips(
         state_key="td_selected_date",
         source="matched",
-        label="📅 Days with scrape runs (click to jump — active day is green):",
+        label="Pick a scrape day (active day highlighted):",
     )
     new_only = st.checkbox("New jobs only (not seen before)", value=True)
 
@@ -453,28 +446,18 @@ elif page == "🔍  Today's Matches":
         applied_map = get_applied_statuses([j[0] for j in matched])
 
         # Summary row
-        total     = len(matched)
-        applied_n = sum(1 for j in matched if applied_map.get(j[0], 0) == 1)
-        jobs_by_type = {
-            "Fulltime":    [j for j in matched if classify_job_type(j[1]) == "Fulltime"],
-            "Werkstudent": [j for j in matched if classify_job_type(j[1]) == "Werkstudent"],
-            "Praktikum":   [j for j in matched if classify_job_type(j[1]) == "Praktikum"],
-        }
+        total       = len(matched)
+        applied_n   = sum(1 for j in matched if applied_map.get(j[0], 0) == 1)
+        skipped_n   = sum(1 for j in matched if applied_map.get(j[0], 0) == 2)
+        unreviewed  = total - applied_n - skipped_n
 
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("📋 Total", total)
-        c2.metric("💼 Fulltime",    len(jobs_by_type["Fulltime"]))
-        c3.metric("🎓 Werkstudent", len(jobs_by_type["Werkstudent"]))
-        c4.metric("📚 Praktikum",   len(jobs_by_type["Praktikum"]))
-        c5.metric("✅ Applied", applied_n)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Total",       total)
+        c2.metric("Unreviewed",  unreviewed)
+        c3.metric("Applied",     applied_n)
+        c4.metric("Skipped",     skipped_n)
 
         st.markdown("---")
-
-        tab_ft, tab_ws, tab_pk = st.tabs([
-            f"💼 Fulltime ({len(jobs_by_type['Fulltime'])})",
-            f"🎓 Werkstudent ({len(jobs_by_type['Werkstudent'])})",
-            f"📚 Praktikum ({len(jobs_by_type['Praktikum'])})",
-        ])
 
         def render_jobs(job_list):
             if not job_list:
@@ -522,34 +505,34 @@ elif page == "🔍  Today's Matches":
                         """, unsafe_allow_html=True)
 
                         st.markdown(
-                            f"📍 {region_badge} &nbsp; "
+                            f"{region_badge} &nbsp; "
                             f'<span style="color:#8b949e; font-size:13px;">{location}</span>',
                             unsafe_allow_html=True
                         )
 
                         new_company = st.text_input(
-                            "🏢 Company",
+                            "Company",
                             value=company if company != "Unknown" else "",
                             placeholder="Type company name...",
                             key=f"company_{job_id}"
                         )
                         if new_company and new_company != company:
-                            if st.button("💾 Save company", key=f"save_company_{job_id}"):
+                            if st.button("Save company", key=f"save_company_{job_id}"):
                                 update_matched_job_company(job_id, new_company)
                                 st.cache_data.clear()
                                 st.success(f"Updated to: {new_company}")
                                 st.rerun()
-                        st.markdown(f"**💼 Role:** {job_title}")
-                        st.markdown(f"**🌐 Work Mode:** {work_mode}")
-                        st.markdown(f"**📄 Contract:** {contract_type}")
-                        st.markdown(f"**📡 Platform:** {platform}")
+                        st.markdown(f"**Role** &nbsp; {job_title}", unsafe_allow_html=True)
+                        st.markdown(f"**Work Mode** &nbsp; {work_mode}", unsafe_allow_html=True)
+                        st.markdown(f"**Contract** &nbsp; {contract_type}", unsafe_allow_html=True)
+                        st.markdown(f"**Platform** &nbsp; {platform}", unsafe_allow_html=True)
 
                         if link_status == "active":
-                            st.success("🔗 Job link is active")
+                            st.success("Job link is active")
                         elif link_status == "expired":
-                            st.error("❌ Job link expired")
+                            st.error("Job link expired")
                         else:
-                            st.warning("⚠️ Manual review needed")
+                            st.warning("Manual review needed")
 
                         if platform_links:
                             for pl in platform_links:
@@ -558,31 +541,31 @@ elif page == "🔍  Today's Matches":
                                 if pl_url:
                                     st.markdown(
                                         f'<a href="{pl_url}" target="_blank" class="apply-link">'
-                                        f'👉 Apply on {pl_name}</a>',
+                                        f'Apply on {pl_name}</a>',
                                         unsafe_allow_html=True
                                     )
 
                         if match_reasons:
-                            st.markdown("**✅ Why you fit:**")
+                            st.markdown("**Why you fit**")
                             for r in match_reasons.split(" | "):
                                 if r.strip():
                                     st.markdown(f"  • {r}")
 
                         if missing:
-                            st.markdown("**⚠️ Gaps:**")
+                            st.markdown("**Gaps**")
                             for m in missing.split(" | "):
                                 if m.strip():
                                     st.markdown(f"  • {m}")
 
                     with col_right:
-                        st.markdown("### 📋 Actions")
+                        st.markdown("### Actions")
 
-                        st.markdown("**Application Status:**")
+                        st.markdown("**Application Status**")
                         btn_col1, btn_col2 = st.columns(2)
 
                         with btn_col1:
                             if st.button(
-                                "✅ Applied",
+                                "Applied",
                                 key=f"applied_{job_id}",
                                 type="primary" if apply_state != 1 else "secondary"
                             ):
@@ -600,7 +583,7 @@ elif page == "🔍  Today's Matches":
 
                         with btn_col2:
                             if st.button(
-                                "❌ Not Applying",
+                                "Not Applying",
                                 key=f"notapplied_{job_id}",
                                 type="primary" if apply_state != 2 else "secondary"
                             ):
@@ -609,7 +592,7 @@ elif page == "🔍  Today's Matches":
                                 st.rerun()
 
                     st.markdown("---")
-                    with st.expander("📋 Log feedback for this job"):
+                    with st.expander("Log feedback for this job"):
                         fb_c1, fb_c2 = st.columns([1, 2])
                         with fb_c1:
                             fb_result = st.selectbox(
@@ -627,26 +610,21 @@ elif page == "🔍  Today's Matches":
                             append_feedback(company, job_title, platform, fb_result, fb_action)
                             st.success("Logged!")
 
-        with tab_ft:
-            render_jobs(jobs_by_type["Fulltime"])
-        with tab_ws:
-            render_jobs(jobs_by_type["Werkstudent"])
-        with tab_pk:
-            render_jobs(jobs_by_type["Praktikum"])
+        render_jobs(matched)
 
 # ══════════════════════════════════════════════════
 # PAGE 3 — NOT MATCHED
 # ══════════════════════════════════════════════════
 elif page == "❌  Not Matched":
 
-    st.title("❌ Not Matched Jobs")
-    st.markdown("Jobs the AI scored but fell below the match threshold. Review these — some may still be worth applying to.")
+    st.title("Not Matched Jobs")
+    st.caption("Jobs the AI scored but fell below the match threshold. Some may still be worth a look.")
     st.markdown("---")
 
     nm_date_str = render_date_chips(
         state_key="nm_selected_date",
         source="not_matched",
-        label="📅 Days with scrape runs (click to jump — active day is green):",
+        label="Pick a scrape day (active day highlighted):",
     )
 
     not_matched = load_not_matched_jobs(nm_date_str)
@@ -685,23 +663,23 @@ elif page == "❌  Not Matched":
                     """, unsafe_allow_html=True)
 
                     st.markdown(
-                        f"📍 {region_badge} &nbsp; "
+                        f"{region_badge} &nbsp; "
                         f'<span style="color:#8b949e; font-size:13px;">{nm_location}</span>',
                         unsafe_allow_html=True
                     )
-                    st.markdown(f"**💼 Role:** {nm_title}")
-                    st.markdown(f"**🏢 Company:** {nm_company}")
-                    st.markdown(f"**🌐 Work Mode:** {nm_work_mode}  |  **📄 Contract:** {nm_contract}")
-                    st.markdown(f"**📡 Platform:** {nm_platform}")
+                    st.markdown(f"**Role** &nbsp; {nm_title}", unsafe_allow_html=True)
+                    st.markdown(f"**Company** &nbsp; {nm_company}", unsafe_allow_html=True)
+                    st.markdown(f"**Work Mode** &nbsp; {nm_work_mode} &nbsp;&nbsp;·&nbsp;&nbsp; **Contract** &nbsp; {nm_contract}", unsafe_allow_html=True)
+                    st.markdown(f"**Platform** &nbsp; {nm_platform}", unsafe_allow_html=True)
 
                     if nm_reasons:
-                        st.markdown("**✅ Partial match:**")
+                        st.markdown("**Partial match**")
                         for r in nm_reasons.split(" | "):
                             if r.strip():
                                 st.markdown(f"  • {r}")
 
                     if nm_missing:
-                        st.markdown("**⚠️ Why it didn't match:**")
+                        st.markdown("**Why it didn't match**")
                         for m in nm_missing.split(" | "):
                             if m.strip():
                                 st.markdown(f"  • {m}")
@@ -710,9 +688,20 @@ elif page == "❌  Not Matched":
                     if nm_url:
                         st.markdown(
                             f'<a href="{nm_url}" target="_blank" class="apply-link">'
-                            f'👉 View on {nm_platform}</a>',
+                            f'View on {nm_platform}</a>',
                             unsafe_allow_html=True
                         )
+
+                    if st.button(
+                        "Move to Matched",
+                        key=f"promote_{nm_id}",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        promote_not_matched_to_matched(nm_id)
+                        st.cache_data.clear()
+                        st.success("Moved to Matched — open the Today's Matches tab to mark Applied / Not Applying.")
+                        st.rerun()
 
 st.markdown("---")
 st.caption("🤖 Job Agent — powered by Claude AI & LangGraph")

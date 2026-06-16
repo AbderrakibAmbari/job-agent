@@ -276,6 +276,65 @@ def save_not_matched_jobs(jobs: list) -> None:
     print(f"[tracker] Saved {inserted} not-matched jobs")
 
 
+def get_last_scrape_date() -> str | None:
+    """Most recent date_found across matched + not_matched jobs (YYYY-MM-DD), or None."""
+    with _conn() as conn:
+        row = conn.execute("""
+            SELECT MAX(d) FROM (
+                SELECT MAX(date_found) AS d FROM matched_jobs
+                WHERE date_found IS NOT NULL AND date_found != ''
+                UNION ALL
+                SELECT MAX(date_found) AS d FROM not_matched_jobs
+                WHERE date_found IS NOT NULL AND date_found != ''
+            )
+        """).fetchone()
+    return row[0] if row and row[0] else None
+
+
+def promote_not_matched_to_matched(nm_id: int) -> bool:
+    """Move a row from not_matched_jobs into matched_jobs.
+
+    Returns True on success (row moved or already present in matched).
+    The not_matched row is deleted either way so it stops showing up.
+    """
+    with _conn() as conn:
+        c = conn.cursor()
+        row = c.execute(
+            "SELECT job_title, company, location, platform, job_url, "
+            "match_score, recommendation, match_reasons, missing, "
+            "contract_type, work_mode, date_found "
+            "FROM not_matched_jobs WHERE id = ?",
+            (nm_id,)
+        ).fetchone()
+        if not row:
+            return False
+
+        (job_title, company, location, platform, job_url,
+         match_score, recommendation, match_reasons, missing,
+         contract_type, work_mode, date_found) = row
+
+        all_urls = json.dumps([{"platform": platform or "", "url": job_url or ""}])
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        c.execute("""
+            INSERT OR IGNORE INTO matched_jobs
+            (job_title, company, location, platform, job_url,
+             match_score, recommendation, match_reasons, missing,
+             contract_type, work_mode, link_status, cover_letter,
+             date_found, applied, all_urls, job_category)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+        """, (
+            job_title, company, location, platform, (job_url or "").strip(),
+            match_score, recommendation, match_reasons, missing,
+            contract_type, work_mode, "manual review", "",
+            date_found or today, all_urls, "Other",
+        ))
+
+        c.execute("DELETE FROM not_matched_jobs WHERE id = ?", (nm_id,))
+        conn.commit()
+    return True
+
+
 def get_not_matched_jobs(date_filter: str = None) -> list:
     with _conn() as conn:
         if date_filter:

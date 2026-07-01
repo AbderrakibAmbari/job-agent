@@ -18,6 +18,8 @@ your row when done.
 | 004  | Escape scraped values in the Streamlit dashboard                     | P2       | M      | LOW  | 002 (soft) | TODO   |
 | 005  | Collapse `main.py` onto `run_pipeline()` and drop LangGraph          | P3       | M      | LOW  | 002        | TODO   |
 | 006  | Fix `_COMPANY_SUFFIX_RE` trailing-period bugs (Ltd./Inc./e.V.)       | P3       | S      | LOW  | 002        | TODO   |
+| 007  | Add `(f/m/d)` and `(f/m/x)` to `_GENDER_RE` (dedup regression fix)   | P2       | S      | LOW  | 002        | TODO   |
+| 008  | Align scraper search terms with the operator's CV                    | P2       | M      | LOW  | 002 (soft) | TODO   |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -37,6 +39,16 @@ The order above reflects leverage, not pure dependency:
 6. **006 whenever** — small regex bug fix in the tracker's company-suffix
    normalizer. Depends on 002 for the xfail tests it flips green. Can run
    before or after 003/004/005; no cross-plan coupling.
+7. **007 whenever** — one-line addition of `(f/m/d)` / `(f/m/x)` to
+   `_GENDER_RE`, fixing the concrete dedup regression seen in the
+   2026-06-29 run (Hyundai AutoEver posting re-scraped as new). Depends
+   on 002 for the regression test. No coupling to 003–006 or 008.
+8. **008 whenever** — search-term rewrite in `nodes/scraper.py`. Aligns
+   `JUNIOR_TERMS` + `TRAINEE_VOLLZEIT_TERMS` with the operator's actual
+   CV, drops SAP/ERP/ABAP/Dynamics, adds Spring Boot/Angular/Vue/React/
+   FastAPI/Docker + German-language sysadmin/DevOps entry-level terms.
+   No hard dependency; soft on 002 for the "did anything import-break"
+   smoke test. Independent of 007.
 
 ## Dependency notes
 
@@ -53,6 +65,16 @@ The order above reflects leverage, not pure dependency:
   after 002; plan 006 flips them green.
 - **001** is fully independent — run it whenever.
 - **003** is fully independent — run it whenever.
+- **002 → 007**: plan 007 adds two regression cases (`(f/m/d)`,
+  `(f/m/x)`) to `tests/test_tracker_keys.py`, which only exists after
+  plan 002. Executor is expected to STOP if the baseline file is
+  missing.
+- **002 → 008 (soft)**: plan 008 rewrites static-data constants in
+  `nodes/scraper.py`. No new tests are added by 008 itself; the pytest
+  baseline from 002 is used as an import/module-integrity smoke test.
+- **007 and 008 are independent of each other.** 007 targets the dedup
+  key regex; 008 targets the search-term vocabulary. Landing order
+  doesn't matter.
 
 ## Findings considered and rejected
 
@@ -80,6 +102,20 @@ Listed here so a future audit doesn't re-discover them.
 - **LangChain version pinning ergonomics**: not actionable without a
   dependency-management tool (`uv`/`poetry`). If the operator moves to
   one, revisit.
+- **`(Junior)` prefix stripping in `_norm_title`**: surfaced by the
+  2026-06-29 QIAGEN dupe (`(Junior) Software Engineer …` reposted
+  without the prefix). Fixing by stripping `(Junior)` risks false-
+  merging genuinely distinct Junior/Senior variants at large employers.
+  Only worth a plan if the pattern repeats — for now, tolerated. See
+  plan 007's maintenance notes.
+- **German-preposition stripping in `_norm_title`**: surfaced by the
+  2026-06-29 SALT AND PEPPER dupe (`Softwareentwickler für
+  Entwicklungsprojekte` reposted without `für`). Same call as above —
+  high blast radius, low frequency. See plan 007's maintenance notes.
+- **"2x row volume on days with a long gap"** is not a bug — it's the
+  scraper doing its job across more calendar days. The 2026-06-29 run
+  had 159 rows vs the usual ~80 because it followed a 6-day gap
+  (2026-06-23 was the previous run). Not worth a plan.
 
 ## Direction findings (not planned, surfaced for the operator to decide)
 

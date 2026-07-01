@@ -317,3 +317,64 @@ For the human/agent who owns this code after the change lands:
 - After this lands, the local mirror backup in `../job-agent-prepurge-backup.git`
   still contains the CV. The operator should delete it once they're confident
   the purge succeeded (e.g. after a week of normal operation).
+
+## Post-execution notes
+
+Executed 2026-07-01 against local commit `68353da` (plans commit); force-pushed
+rewritten `0374b59` to `origin/main`. Two things did not match the plan as
+written — record them so a future re-run doesn't hit the same surprises.
+
+### Defect 1: "working file survives filter-repo" was wrong
+
+The plan claimed `git filter-repo` only rewrites history and leaves the
+working-tree `my_cv.txt` in place because it's `.gitignore`d. That was
+incorrect. `my_cv.txt` was in fact **tracked in HEAD** (blob
+`e058a08b9ab49626e881885be20cdadb4c612197`) — `.gitignore` only prevents
+future `git add`s of untracked files, it does not untrack an already-tracked
+file. When filter-repo rewrote history to strip `my_cv.txt` from every
+commit, the new HEAD's tree no longer contained it, so the working-tree copy
+was correctly removed as part of the ref update.
+
+**Recovery used** (matches the plan's stated recovery path): extract the
+blob from the mirror and drop it back on disk as an ignored file:
+
+```
+git -C ../job-agent-prepurge-backup.git show <pre-purge-HEAD>:my_cv.txt > my_cv.txt
+```
+
+After restore, `git status --ignored` shows `!! my_cv.txt` and the runtime
+smoke test (`python -c "import main"`) passed.
+
+**For a future re-run of a similar purge**: before invoking filter-repo,
+extract the file to a scratch path first (`cp my_cv.txt ../my_cv.txt.bak`),
+then let filter-repo remove it from tree + history, then move it back
+(`mv ../my_cv.txt.bak my_cv.txt`). Do NOT rely on `.gitignore` to protect a
+tracked file from a history rewrite.
+
+### Defect 2: GitHub raw-CDN cache lingers at old SHAs
+
+Step 8's `curl -sI` checks against
+`raw.githubusercontent.com/.../a845c8d/my_cv.txt` and `.../9648d22/my_cv.txt`
+were expected to return 404 immediately after the force-push. They did not —
+they returned 200 for the two hours we checked. The git-protocol side was
+clean the whole time: `git ls-remote origin` showed only the new HEAD, and
+`git fetch origin a845c8d` failed with `couldn't find remote ref`. So the
+underlying objects are gone from GitHub — the 200s are pure CDN staleness at
+the old-SHA path.
+
+**For a future re-run**: relax Step 8's STOP condition to "the current
+`main` URL returns 404 AND `git ls-remote origin` no longer references the
+purged commits AND `git fetch origin <old-sha>` fails". The old-SHA raw-URL
+404 is a *nice-to-have* that decays naturally; don't block plan closure on
+it. If the operator wants immediate cache invalidation, they file GitHub's
+private-information removal request (link in Maintenance Notes above).
+
+### Follow-up: `Lebenslauf_*.pdf` added to `.gitignore`
+
+While closing out the plan, a related file — `Lebenslauf_Ambari_Vollstaendig.pdf`
+(166 KB, PII-bearing CV) — was found on disk, untracked, and unignored. It
+had never been committed (`git log --all -- Lebenslauf_Ambari_Vollstaendig.pdf`
+empty), so no purge was needed. To prevent the same failure mode that put
+`my_cv.txt` in history originally, the pattern `Lebenslauf_*.pdf` was added
+to `.gitignore` under the "Personal data" section. This change is part of
+the same finalization commit as the plan status update.

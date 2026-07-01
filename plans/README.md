@@ -9,7 +9,7 @@ your row when done.
 
 | Plan | Title                                                                | Priority | Effort | Risk | Depends on | Status |
 |------|----------------------------------------------------------------------|----------|--------|------|------------|--------|
-| 001  | Purge `my_cv.txt` from the public git history                        | P1       | S      | HIGH | —          | TODO   |
+| 001  | Purge `my_cv.txt` from the public git history                        | P1       | S      | HIGH | —          | DONE (see plan post-exec notes) |
 | 002  | Establish a pytest baseline covering the pure-function logic         | P1       | M      | LOW  | —          | TODO   |
 | 003  | Small cleanup — unused deps, stale README, dead cover-letter wiring  | P2       | S      | LOW  | —          | TODO   |
 | 004  | Escape scraped values in the Streamlit dashboard                     | P2       | M      | LOW  | 002 (soft) | TODO   |

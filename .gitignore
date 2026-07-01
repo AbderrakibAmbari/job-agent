@@ -4,6 +4,7 @@ data/linkedin_cookies.json
 
 # ── Personal data ───────────────────────────────────
 my_cv.txt
+Lebenslauf_*.pdf
 config/
 outputs/
 cover_letters/

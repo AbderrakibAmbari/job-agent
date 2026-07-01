@@ -7,9 +7,14 @@
 > in `plans/README.md`.
 >
 > **Drift check (run first)**:
-> `git diff --stat 29244f6..HEAD -- main.py nodes/pipeline.py run_daily.py requirements.txt`
+> `git diff --stat ee9a6e2..HEAD -- main.py nodes/pipeline.py run_daily.py requirements.txt`
 > If any in-scope file changed since this plan was written, compare the
 > "Current state" excerpts against the live code; on mismatch, STOP.
+>
+> **SHA note**: Plan 001 (executed 2026-07-01) rewrote every commit SHA via
+> `git filter-repo`. The original `Planned at` commit `29244f6` was replaced
+> by its rewritten equivalent `ee9a6e2` (same tree, same message). All
+> SHAs in this plan use the new value.
 
 ## Status
 
@@ -18,7 +23,7 @@
 - **Risk**: LOW (with tests in place)
 - **Depends on**: 002 (test baseline — required, not just useful)
 - **Category**: tech-debt / architecture
-- **Planned at**: commit `29244f6`, 2026-06-30
+- **Planned at**: commit `29244f6` / rewritten `ee9a6e2`, 2026-06-30
 
 ## Why this matters
 
@@ -50,7 +55,7 @@ removed from `requirements.txt`. The README no longer mentions the
 
 ## Current state
 
-`main.py` HEAD `29244f6`, lines 40-121, has these load-bearing parts that
+`main.py` HEAD `ee9a6e2`, lines 40-121, has these load-bearing parts that
 `run_pipeline` does NOT have:
 
 - The tee-logging setup (lines 12-38) writes a `data/run_<stamp>.txt` file

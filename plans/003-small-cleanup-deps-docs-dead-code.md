@@ -7,9 +7,14 @@
 > in `plans/README.md`.
 >
 > **Drift check (run first)**:
-> `git diff --stat 29244f6..HEAD -- requirements.txt README.md dashboard.py nodes/tracker.py`
+> `git diff --stat ee9a6e2..HEAD -- requirements.txt README.md dashboard.py nodes/tracker.py`
 > If any in-scope file changed since this plan was written, compare the
 > "Current state" excerpts against the live code; on mismatch, STOP.
+>
+> **SHA note**: Plan 001 (executed 2026-07-01) rewrote every commit SHA via
+> `git filter-repo`. The original `Planned at` commit `29244f6` was replaced
+> by its rewritten equivalent `ee9a6e2` (same tree, same message). All
+> SHAs in this plan use the new value.
 
 ## Status
 
@@ -18,7 +23,7 @@
 - **Risk**: LOW
 - **Depends on**: none
 - **Category**: tech-debt / docs / dx
-- **Planned at**: commit `29244f6`, 2026-06-30
+- **Planned at**: commit `29244f6` / rewritten `ee9a6e2`, 2026-06-30
 
 ## Why this matters
 
@@ -168,7 +173,7 @@ langchain-google-genai>=2.0.0
 langchain-groq>=0.2.0
 ```
 
-(Lines 30 and 31 at HEAD `29244f6`.)
+(Lines 30 and 31 at HEAD `ee9a6e2`.)
 
 **Verify**:
 ```

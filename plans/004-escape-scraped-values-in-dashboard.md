@@ -7,9 +7,14 @@
 > in `plans/README.md`.
 >
 > **Drift check (run first)**:
-> `git diff --stat 29244f6..HEAD -- dashboard.py`
+> `git diff --stat ee9a6e2..HEAD -- dashboard.py`
 > If `dashboard.py` changed since this plan was written, compare the
 > "Current state" excerpts against the live code; on mismatch, STOP.
+>
+> **SHA note**: Plan 001 (executed 2026-07-01) rewrote every commit SHA via
+> `git filter-repo`. The original `Planned at` commit `29244f6` was replaced
+> by its rewritten equivalent `ee9a6e2` (same tree, same message). All
+> SHAs in this plan use the new value.
 
 ## Status
 
@@ -18,7 +23,7 @@
 - **Risk**: LOW
 - **Depends on**: 002 (test baseline — useful but not strictly required)
 - **Category**: security
-- **Planned at**: commit `29244f6`, 2026-06-30
+- **Planned at**: commit `29244f6` / rewritten `ee9a6e2`, 2026-06-30
 
 ## Why this matters
 
@@ -52,7 +57,7 @@ markdown link.
 ## Current state
 
 `dashboard.py` interpolates the following scraped fields into
-`unsafe_allow_html=True` blocks. Line numbers from HEAD `29244f6`:
+`unsafe_allow_html=True` blocks. Line numbers from HEAD `ee9a6e2`:
 
 | Field          | Source                | Used at lines                                |
 |----------------|-----------------------|-----------------------------------------------|

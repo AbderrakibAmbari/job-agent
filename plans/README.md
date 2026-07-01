@@ -14,7 +14,7 @@ your row when done.
 |------|----------------------------------------------------------------------|----------|--------|------|------------|--------|
 | 001  | Purge `my_cv.txt` from the public git history                        | P1       | S      | HIGH | —          | DONE (see plan post-exec notes) |
 | 002  | Establish a pytest baseline covering the pure-function logic         | P1       | M      | LOW  | —          | DONE (see plan post-exec notes) |
-| 003  | Small cleanup — unused deps, stale README, dead cover-letter wiring  | P2       | S      | LOW  | —          | TODO   |
+| 003  | Small cleanup — unused deps, stale README, dead cover-letter wiring  | P2       | S      | LOW  | —          | DONE (partial — see plan post-exec notes) |
 | 004  | Escape scraped values in the Streamlit dashboard                     | P2       | M      | LOW  | 002 (soft) | TODO   |
 | 005  | Collapse `main.py` onto `run_pipeline()` and drop LangGraph          | P3       | M      | LOW  | 002        | TODO   |
 | 006  | Fix `_COMPANY_SUFFIX_RE` trailing-period bugs (Ltd./Inc./e.V.)       | P3       | S      | LOW  | 002        | TODO   |

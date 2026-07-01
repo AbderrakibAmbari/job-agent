@@ -6,7 +6,7 @@ from datetime import datetime
 from nodes.feedback_log import append_feedback
 from nodes.tracker import (
     init_db, get_all_applications, get_matched_jobs,
-    update_status, delete_application, update_matched_job_cover_letter,
+    update_status, delete_application,
     update_matched_job_company, update_matched_job_applied,
     get_applied_status, get_applied_statuses, save_application,
     get_not_matched_jobs, get_scrape_dates,
@@ -467,7 +467,7 @@ elif page == "🔍  Today's Matches":
                 (job_id, job_title, company, location, platform,
                  job_url, match_score, recommendation, match_reasons,
                  missing, contract_type, work_mode, link_status,
-                 cover_letter, date_found, applied, all_urls_raw, *_) = job
+                 _unused_cover_letter, date_found, applied, all_urls_raw, *_) = job
                 try:
                     platform_links = json.loads(all_urls_raw or "[]")
                 except Exception:
@@ -574,7 +574,7 @@ elif page == "🔍  Today's Matches":
                                     company=company,
                                     job_title=job_title,
                                     platform=platform,
-                                    cover_letter=cover_letter if cover_letter else "",
+                                    cover_letter="",
                                     job_url=job_url if job_url else ""
                                 )
                                 st.cache_data.clear()

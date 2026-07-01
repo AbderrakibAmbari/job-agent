@@ -349,15 +349,6 @@ def get_not_matched_jobs(date_filter: str = None) -> list:
         """).fetchall()
 
 
-def update_matched_job_cover_letter(job_id: int, cover_letter: str) -> None:
-    with _conn() as conn:
-        conn.execute(
-            "UPDATE matched_jobs SET cover_letter = ? WHERE id = ?",
-            (cover_letter, job_id)
-        )
-        conn.commit()
-
-
 def update_matched_job_company(job_id: int, company: str) -> None:
     with _conn() as conn:
         conn.execute(

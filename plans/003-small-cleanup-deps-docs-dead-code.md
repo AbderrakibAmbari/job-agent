@@ -393,3 +393,51 @@ For the human/agent who owns this code after the change lands:
   textarea (re-introduce) and a writer (re-introduce
   `update_matched_job_cover_letter`) will need to come back. The current
   state leaves the column open for that.
+
+## Post-execution notes (2026-07-01)
+
+Executed at commit `2f8ac30`. Partial completion — Steps 1 and 4 landed,
+Steps 2 and 3 skipped as spec-vs-code drift. Final state: `pytest -q`
+86 passed / 3 xfailed / exit 0; all modules smoke-import.
+
+### Steps completed
+
+- **Step 1** — removed `langchain-google-genai>=2.0.0` and
+  `langchain-groq>=0.2.0` from `requirements.txt`; pip-uninstalled both
+  from the venv. `python -c "import main, dashboard, nodes.pipeline"` still
+  clean. Deps were truly unused.
+- **Step 4** — dropped the dead cover-letter wiring on the matched-jobs
+  code path: `update_matched_job_cover_letter` deleted from
+  `nodes/tracker.py`; import removed from `dashboard.py`; matched-jobs
+  unpack renamed to `_unused_cover_letter`; `save_application(...)` call
+  hardcoded to `cover_letter=""`. Applications-page textarea + column
+  left untouched as scoped.
+
+### Steps skipped — plan spec was wrong
+
+- **Step 2 (`min_score` in README)**. Plan claimed "code uses 40 in both
+  scripts, README says 70/50." Actual code at `main.py:99` is
+  `min_score=70,` and `run_daily.py:26` is `run_pipeline(min_score=50)`
+  — exactly what the README already documented. No change needed.
+  Audited to be sure; the drift was in the plan, not the code.
+- **Step 3 (`PLATFORM_TIMEOUT` in README + scraper comment)**. Plan
+  claimed "code default is 900, env-overridable; README says 600."
+  Actual code at `nodes/scraper.py:104` is `PLATFORM_TIMEOUT = 600`
+  (no env override) — matches the README. The `600s/platform budget`
+  comment at `nodes/scraper.py:340` is accurate. No change needed.
+
+Same class of defect as the earlier plan 002 revisions: the audit was
+written from function names / comments / intuition rather than reading
+the concrete values. Recording it here so it doesn't get re-audited.
+
+### Files touched
+
+`dashboard.py`, `nodes/tracker.py`, `requirements.txt`. Not touched:
+`README.md`, `nodes/scraper.py`.
+
+### Follow-up left open
+
+- `matched_jobs.cover_letter` column and its `""` insert values are
+  still tolerated dead schema. Removing them requires an
+  `ALTER TABLE ... DROP COLUMN` migration against the user's live
+  `data/applications.db`. Deferred as its own future plan.

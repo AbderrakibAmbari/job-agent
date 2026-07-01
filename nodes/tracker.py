@@ -12,7 +12,7 @@ DB_PATH = "data/applications.db"
 
 # Strip gender suffixes before title+company dedup
 _GENDER_RE = re.compile(
-    r'\s*\(m/w/d\)|\s*\(w/m/d\)|\s*\(m/f/d\)|\s*\(m/w/x\)|\s*\(w/m/x\)|\s*\(all genders\)',
+    r'\s*\(m/w/d\)|\s*\(w/m/d\)|\s*\(m/f/d\)|\s*\(f/m/d\)|\s*\(m/w/x\)|\s*\(w/m/x\)|\s*\(f/m/x\)|\s*\(all genders\)',
     re.IGNORECASE,
 )
 # Strip common legal suffixes so "Arvato" and "Arvato SE" normalise to the same key

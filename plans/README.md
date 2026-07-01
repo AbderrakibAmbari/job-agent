@@ -18,7 +18,7 @@ your row when done.
 | 004  | Escape scraped values in the Streamlit dashboard                     | P2       | M      | LOW  | 002 (soft) | TODO   |
 | 005  | Collapse `main.py` onto `run_pipeline()` and drop LangGraph          | P3       | M      | LOW  | 002        | TODO   |
 | 006  | Fix `_COMPANY_SUFFIX_RE` trailing-period bugs (Ltd./Inc./e.V.)       | P3       | S      | LOW  | 002        | TODO   |
-| 007  | Add `(f/m/d)` and `(f/m/x)` to `_GENDER_RE` (dedup regression fix)   | P2       | S      | LOW  | 002        | TODO   |
+| 007  | Add `(f/m/d)` and `(f/m/x)` to `_GENDER_RE` (dedup regression fix)   | P2       | S      | LOW  | 002        | DONE — `_GENDER_RE` extended, 4 regression cases added; suite 90p/3xf/0f. |
 | 008  | Align scraper search terms with the operator's CV                    | P2       | M      | LOW  | 002 (soft) | TODO   |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)

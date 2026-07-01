@@ -7,8 +7,10 @@ from nodes.tracker import _norm_title, _norm_company, _title_company_key
     ("Junior Dev (m/w/d)", "junior dev"),
     ("Junior Dev (w/m/d)", "junior dev"),
     ("Junior Dev (m/f/d)", "junior dev"),
+    ("Junior Dev (f/m/d)", "junior dev"),
     ("Junior Dev (m/w/x)", "junior dev"),
     ("Junior Dev (w/m/x)", "junior dev"),
+    ("Junior Dev (f/m/x)", "junior dev"),
     ("Junior Dev (all genders)", "junior dev"),
     ("Junior Dev (M/W/D)", "junior dev"),
     ("Junior Dev (All Genders)", "junior dev"),
@@ -16,6 +18,22 @@ from nodes.tracker import _norm_title, _norm_company, _title_company_key
 ])
 def test_norm_title_strips_gender_suffix_case_insensitive(raw, expected):
     assert _norm_title(raw) == expected
+
+
+@pytest.mark.parametrize("title, company, expected", [
+    pytest.param(
+        "Linux/Unix Systems Engineer (f/m/d)", "Hyundai AutoEver Europe GmbH",
+        "linux/unix systems engineer|hyundai autoever europe",
+        id="strips_f_m_d_variant",
+    ),
+    pytest.param(
+        "Data Analyst (f/m/x)", "Acme",
+        "data analyst|acme",
+        id="strips_f_m_x_variant",
+    ),
+])
+def test_title_company_key_strips_female_first_gender_variants(title, company, expected):
+    assert _title_company_key(title, company) == expected
 
 
 def test_norm_title_lowercases_and_strips_edges():

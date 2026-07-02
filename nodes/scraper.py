@@ -199,72 +199,61 @@ def deduplicate(jobs: list) -> list:
 # ── Search Terms ───────────────────────────────────
 # Ordered by priority so front-loaded slices in _scrape_platform hit the best terms first.
 JUNIOR_TERMS = [
-    # Tier 1 — highest recall German compounds
+    # Tier 1 — highest-recall German compounds (broadest CV match)
     "Junior Softwareentwickler",
-    "Junior Backend Entwickler",
     "Junior Software Engineer",
+    "Junior Backend Entwickler",
     "Junior Backend Developer",
-    # Tier 1 — AI/GenAI (fastest-growing category, top candidate fit)
-    "Junior AI Engineer",
-    "Junior Generative AI Engineer",
-    "Junior NLP Engineer",
-    "AI Software Engineer",
-    # Tier 1 — QA/Test Automation (candidate has direct Werkstudent experience)
-    "Junior QA Engineer",
-    "Junior Test Automation Engineer",
-    "Junior Software Tester",
-    "Junior SDET",
-    # Tier 1 — IT Consulting / Trainee Programs
-    "Junior IT Consultant",
-    "IT Trainee",
-    "Trainee IT Consulting",
-    "Trainee Softwareentwicklung",
-    # Tier 1 — Full Stack / Cloud / DevOps
-    "Junior Full Stack Developer",
     "Junior Full Stack Entwickler",
+    "Junior Full Stack Developer",
+    # Tier 1 — language-specific matching the CV's primary stack
+    "Junior Java Developer",
+    "Junior Java Entwickler",
+    "Junior Python Developer",
+    "Junior Python Entwickler",
+    # Tier 1 — framework-specific matching the CV's project stack
+    "Junior Spring Boot Entwickler",
+    "Junior Angular Entwickler",
+    "Junior Vue Entwickler",
+    "Junior React Entwickler",
+    "Junior FastAPI Entwickler",
+    # Tier 1 — AI/GenAI (Bachelorarbeit stack, actively growing category)
+    "Junior AI Engineer",
+    "AI Software Engineer",
+    "Junior AI Application Engineer",
+    # Tier 1 — DevOps / Cloud / SRE / Sysadmin entry
+    # (profile.yaml career_narrative welcomes infra-adjacent roles)
     "Junior DevOps Engineer",
     "Junior Cloud Engineer",
     "Junior Platform Engineer",
-    # Tier 1 — Data
-    "Junior Data Engineer",
-    "Junior Data Analyst",
-    "Junior Data Scientist",
-    "Junior BI Developer",
-    # Tier 2 — Language-specific English
-    "Junior Python Developer",
-    "Junior Java Developer",
-    "Junior Machine Learning Engineer",
-    "Junior LLM Engineer",
-    # Tier 2 — Language-specific German
-    "Junior Python Entwickler",
-    "Junior Java Entwickler",
-    "Junior Full Stack Entwickler",
+    "Junior SRE",
+    "Junior Site Reliability Engineer",
+    "Junior Systemadministrator",
+    "Junior IT Systemadministrator",
+    "Junior Linux Administrator",
+    # Tier 2 — QA/Test (candidate has direct Werkstudent QA experience)
+    "Junior QA Engineer",
+    "Junior Test Automation Engineer",
+    "Junior Software Tester",
+    # Tier 2 — Language / framework secondaries
+    "Junior TypeScript Entwickler",
+    "Junior Kotlin Entwickler",
     "Junior Webentwickler",
     "Junior Frontend Entwickler",
-    "Junior Kotlin Entwickler",
-    "Junior TypeScript Entwickler",
-    # Tier 2 — ERP / SAP / Dynamics
-    "Junior SAP Berater",
-    "Junior SAP Consultant",
-    "Junior ERP Consultant",
-    "Junior Dynamics 365 Consultant",
-    "Junior ABAP Entwickler",
-    # Tier 2 — Broader entry-level
-    "Junior KI Engineer",
-    "Junior Analytics Engineer",
-    "Junior SRE",
-    "Direkteinstieg IT Beratung",
-    "Young Professional IT",
+    # Tier 2 — Consulting / Trainee (kept for volume; consultant filter
+    # in is_deprioritized already gates junior-vs-senior consultant hits)
+    "Junior IT Consultant",
+    "IT Trainee",
     "Junior Anwendungsentwickler",
-    "Junior Wirtschaftsinformatiker",
-    # Tier 3 — German entry-level qualifiers
-    "Trainee Software Engineer",
+    # Tier 3 — German-language entry qualifiers
     "Berufseinsteiger Entwickler",
     "Berufseinsteiger Softwareentwicklung",
-    "Softwareentwickler Berufseinsteiger",
     "Absolvent Informatik",
     "Quereinsteiger Softwareentwickler",
-    "Trainee IT",
+    "Junior Wirtschaftsinformatiker",
+    "Junior Machine Learning Engineer",
+    "Junior LLM Engineer",
+    "Junior KI Engineer",
 ]
 
 PRAKTIKUM_TERMS = [
@@ -285,21 +274,9 @@ PRAKTIKUM_TERMS = [
     "Praktikum QA",
 ]
 
-# Used primarily for the Arbeitsagentur API (many SAP/training roles only listed there)
-SAP_TRAINING_TERMS = [
-    # "SAP Praktikant",  # paused with Praktikum
-    "Junior SAP Berater",
-    "Junior SAP Consultant",
-    "Trainee SAP Beratung",
-    "SAP Trainee",
-    "adesso Trainee",
-    "Capgemini Junior",
-    "Materna Trainee",
-    "Sopra Steria Junior",
-    "msg Trainee",
-    "Trainee IT Beratung",
-    "Absolventenprogramm IT",
-]
+# SAP/ERP/ABAP search terms removed in plan 008 — CV has no SAP/ABAP signal
+# and nodes/analyzer.py already caps SAP roles at 55. Re-add here if the
+# operator's target profile changes.
 
 # Top-priority terms: Trainee programs and Vollzeit/Direkteinstieg roles
 # These are run first on every platform so they dominate the limited search budget.
@@ -328,11 +305,12 @@ TRAINEE_VOLLZEIT_TERMS = [
 
 # Praktikum paused: PRAKTIKUM_TERMS kept defined for easy re-enable, but
 # excluded from the active search slates below.
-SEARCH_TERMS = TRAINEE_VOLLZEIT_TERMS + JUNIOR_TERMS + SAP_TRAINING_TERMS
+SEARCH_TERMS = TRAINEE_VOLLZEIT_TERMS + JUNIOR_TERMS
 
 # Subset used by each Playwright platform — front-loaded by priority.
 # Trainee/Vollzeit first, then top Junior terms.
-PLATFORM_SEARCH_TERMS = TRAINEE_VOLLZEIT_TERMS[:14] + JUNIOR_TERMS[:18]
+# Tier 1 in the new JUNIOR_TERMS ends at index 26 inclusive — see plan 008.
+PLATFORM_SEARCH_TERMS = TRAINEE_VOLLZEIT_TERMS[:14] + JUNIOR_TERMS[:27]
 
 # ── Target Regions ─────────────────────────────────
 # All 16 German Bundesländer, ordered by tech-hub priority so the
@@ -904,8 +882,9 @@ def scrape_arbeitsagentur(terms: list, regions: list, days_window: int = 1) -> t
 
 
 def _run_arbeitsagentur(days_window: int = 1) -> tuple:
-    # Lead with Trainee/Vollzeit (top priority), then SAP/Training, then top Juniors.
-    ba_terms = TRAINEE_VOLLZEIT_TERMS + SAP_TRAINING_TERMS + JUNIOR_TERMS[:10]
+    # Lead with Trainee/Vollzeit (top priority), then the top Junior terms.
+    # SAP/ABAP terms removed in plan 008 — see comment near SAP_TRAINING_TERMS deletion.
+    ba_terms = TRAINEE_VOLLZEIT_TERMS + JUNIOR_TERMS[:15]
     print(f"\n[BA] Scraping Arbeitsagentur API ({len(ba_terms)} terms x {len(REGIONS)} regions)...")
     return scrape_arbeitsagentur(ba_terms, REGIONS, days_window=days_window)
 

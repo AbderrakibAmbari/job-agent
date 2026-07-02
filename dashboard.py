@@ -13,6 +13,31 @@ from nodes.tracker import (
     promote_not_matched_to_matched,
 )
 import os
+import html
+from urllib.parse import urlparse
+
+
+def _esc(value) -> str:
+    """HTML-escape a value for safe interpolation into unsafe_allow_html blocks."""
+    return html.escape("" if value is None else str(value), quote=True)
+
+
+def _safe_url(value) -> str:
+    """Return value only if it is an http(s) URL; empty string otherwise.
+
+    Prevents javascript:/data:/file: URLs scraped from third-party boards
+    from being placed into an href attribute.
+    """
+    if not value:
+        return ""
+    s = str(value).strip()
+    try:
+        parsed = urlparse(s)
+    except ValueError:
+        return ""
+    if parsed.scheme in ("http", "https") and parsed.netloc:
+        return s
+    return ""
 
 # ── Init ───────────────────────────────────────────
 init_db()
@@ -273,7 +298,7 @@ def get_region_badge(location: str) -> str:
     for key, (label, css) in REGION_BADGE.items():
         if key in loc_lower:
             return f'<span class="badge {css}">{label}</span>'
-    return f'<span class="badge badge-other">{location[:15]}</span>'
+    return f'<span class="badge badge-other">{_esc(location[:15])}</span>'
 
 def get_score_color(score: int) -> str:
     if score >= 85: return "#3fb950"
@@ -390,13 +415,14 @@ if page == "📊  My Applications":
             ):
                 col_info, col_actions = st.columns([2, 1])
                 with col_info:
-                    st.markdown(f"**Company** &nbsp; {row['company']}", unsafe_allow_html=True)
-                    st.markdown(f"**Role** &nbsp; {row['job_title']}", unsafe_allow_html=True)
-                    st.markdown(f"**Platform** &nbsp; {row['platform']}", unsafe_allow_html=True)
-                    st.markdown(f"**Applied** &nbsp; {row['date_applied']}", unsafe_allow_html=True)
-                    st.markdown(f"**Status** &nbsp; {icon} {row['status']}", unsafe_allow_html=True)
-                    if row["job_url"]:
-                        st.markdown(f"**Link** &nbsp; [Open job posting]({row['job_url']})", unsafe_allow_html=True)
+                    st.markdown(f"**Company** &nbsp; {_esc(row['company'])}", unsafe_allow_html=True)
+                    st.markdown(f"**Role** &nbsp; {_esc(row['job_title'])}", unsafe_allow_html=True)
+                    st.markdown(f"**Platform** &nbsp; {_esc(row['platform'])}", unsafe_allow_html=True)
+                    st.markdown(f"**Applied** &nbsp; {_esc(row['date_applied'])}", unsafe_allow_html=True)
+                    st.markdown(f"**Status** &nbsp; {icon} {_esc(row['status'])}", unsafe_allow_html=True)
+                    safe = _safe_url(row["job_url"])
+                    if safe:
+                        st.markdown(f"**Link** &nbsp; [Open job posting]({safe})", unsafe_allow_html=True)
 
                 with col_actions:
                     new_status = st.selectbox(
@@ -496,7 +522,7 @@ elif page == "🔍  Today's Matches":
                             <span style="font-size:22px; font-weight:700;
                                          color:{score_color};">{match_score}%</span>
                             <span style="color:#8b949e; font-size:13px;
-                                         margin-left:8px;">{recommendation}</span>
+                                         margin-left:8px;">{_esc(recommendation)}</span>
                         </div>
                         <div class="score-bar-bg">
                             <div class="score-bar-fill" style="width:{match_score}%;
@@ -506,7 +532,7 @@ elif page == "🔍  Today's Matches":
 
                         st.markdown(
                             f"{region_badge} &nbsp; "
-                            f'<span style="color:#8b949e; font-size:13px;">{location}</span>',
+                            f'<span style="color:#8b949e; font-size:13px;">{_esc(location)}</span>',
                             unsafe_allow_html=True
                         )
 
@@ -522,10 +548,10 @@ elif page == "🔍  Today's Matches":
                                 st.cache_data.clear()
                                 st.success(f"Updated to: {new_company}")
                                 st.rerun()
-                        st.markdown(f"**Role** &nbsp; {job_title}", unsafe_allow_html=True)
-                        st.markdown(f"**Work Mode** &nbsp; {work_mode}", unsafe_allow_html=True)
-                        st.markdown(f"**Contract** &nbsp; {contract_type}", unsafe_allow_html=True)
-                        st.markdown(f"**Platform** &nbsp; {platform}", unsafe_allow_html=True)
+                        st.markdown(f"**Role** &nbsp; {_esc(job_title)}", unsafe_allow_html=True)
+                        st.markdown(f"**Work Mode** &nbsp; {_esc(work_mode)}", unsafe_allow_html=True)
+                        st.markdown(f"**Contract** &nbsp; {_esc(contract_type)}", unsafe_allow_html=True)
+                        st.markdown(f"**Platform** &nbsp; {_esc(platform)}", unsafe_allow_html=True)
 
                         if link_status == "active":
                             st.success("Job link is active")
@@ -537,11 +563,11 @@ elif page == "🔍  Today's Matches":
                         if platform_links:
                             for pl in platform_links:
                                 pl_name = pl.get("platform", "Apply")
-                                pl_url  = pl.get("url", "")
+                                pl_url  = _safe_url(pl.get("url", ""))
                                 if pl_url:
                                     st.markdown(
-                                        f'<a href="{pl_url}" target="_blank" class="apply-link">'
-                                        f'Apply on {pl_name}</a>',
+                                        f'<a href="{_esc(pl_url)}" target="_blank" class="apply-link">'
+                                        f'Apply on {_esc(pl_name)}</a>',
                                         unsafe_allow_html=True
                                     )
 
@@ -654,7 +680,7 @@ elif page == "❌  Not Matched":
                         <span style="font-size:22px; font-weight:700;
                                      color:{score_color};">{nm_score}%</span>
                         <span style="color:#8b949e; font-size:13px;
-                                     margin-left:8px;">{nm_recommendation}</span>
+                                     margin-left:8px;">{_esc(nm_recommendation)}</span>
                     </div>
                     <div class="score-bar-bg">
                         <div class="score-bar-fill" style="width:{nm_score}%;
@@ -664,13 +690,13 @@ elif page == "❌  Not Matched":
 
                     st.markdown(
                         f"{region_badge} &nbsp; "
-                        f'<span style="color:#8b949e; font-size:13px;">{nm_location}</span>',
+                        f'<span style="color:#8b949e; font-size:13px;">{_esc(nm_location)}</span>',
                         unsafe_allow_html=True
                     )
-                    st.markdown(f"**Role** &nbsp; {nm_title}", unsafe_allow_html=True)
-                    st.markdown(f"**Company** &nbsp; {nm_company}", unsafe_allow_html=True)
-                    st.markdown(f"**Work Mode** &nbsp; {nm_work_mode} &nbsp;&nbsp;·&nbsp;&nbsp; **Contract** &nbsp; {nm_contract}", unsafe_allow_html=True)
-                    st.markdown(f"**Platform** &nbsp; {nm_platform}", unsafe_allow_html=True)
+                    st.markdown(f"**Role** &nbsp; {_esc(nm_title)}", unsafe_allow_html=True)
+                    st.markdown(f"**Company** &nbsp; {_esc(nm_company)}", unsafe_allow_html=True)
+                    st.markdown(f"**Work Mode** &nbsp; {_esc(nm_work_mode)} &nbsp;&nbsp;·&nbsp;&nbsp; **Contract** &nbsp; {_esc(nm_contract)}", unsafe_allow_html=True)
+                    st.markdown(f"**Platform** &nbsp; {_esc(nm_platform)}", unsafe_allow_html=True)
 
                     if nm_reasons:
                         st.markdown("**Partial match**")
@@ -686,11 +712,13 @@ elif page == "❌  Not Matched":
 
                 with col_right:
                     if nm_url:
-                        st.markdown(
-                            f'<a href="{nm_url}" target="_blank" class="apply-link">'
-                            f'View on {nm_platform}</a>',
-                            unsafe_allow_html=True
-                        )
+                        safe = _safe_url(nm_url)
+                        if safe:
+                            st.markdown(
+                                f'<a href="{_esc(safe)}" target="_blank" class="apply-link">'
+                                f'View on {_esc(nm_platform)}</a>',
+                                unsafe_allow_html=True
+                            )
 
                     if st.button(
                         "Move to Matched",

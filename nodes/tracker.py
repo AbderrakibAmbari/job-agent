@@ -17,7 +17,7 @@ _GENDER_RE = re.compile(
 )
 # Strip common legal suffixes so "Arvato" and "Arvato SE" normalise to the same key
 _COMPANY_SUFFIX_RE = re.compile(
-    r'\b(GmbH\s*&\s*Co\.?\s*KG|GmbH|AG|SE|Ltd\.?|LLC|Inc\.?|KG|e\.V\.|gGmbH|plc)\b',
+    r'\b(GmbH\s*&\s*Co\.?\s*KG|GmbH|AG|SE|Ltd\.?|LLC|Inc\.?|KG|e\.V\.|gGmbH|plc)(?=\s|[.,;]|$)',
     re.IGNORECASE,
 )
 

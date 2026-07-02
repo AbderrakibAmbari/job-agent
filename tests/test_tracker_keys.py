@@ -52,28 +52,17 @@ def test_norm_title_empty_returns_empty():
     assert _norm_title("") == ""
 
 
-_XFAIL_TRAILING_PERIOD = pytest.mark.xfail(
-    reason=(
-        "BUG: _COMPANY_SUFFIX_RE uses trailing \\b which cannot cross a trailing "
-        "period. 'Ltd.'/'Inc.' strip to 'acme .' (leaving the period), 'e.V.' at "
-        "end-of-string does not match at all. Out of scope for plan 002 — logged "
-        "for a follow-up plan."
-    ),
-    strict=True,
-)
-
-
 @pytest.mark.parametrize("raw, expected", [
     ("Acme GmbH", "acme"),
     ("Acme AG", "acme"),
     ("Acme SE", "acme"),
     ("Acme Ltd", "acme"),
-    pytest.param("Acme Ltd.", "acme", marks=_XFAIL_TRAILING_PERIOD),
+    ("Acme Ltd.", "acme"),
     ("Acme LLC", "acme"),
     ("Acme Inc", "acme"),
-    pytest.param("Acme Inc.", "acme", marks=_XFAIL_TRAILING_PERIOD),
+    ("Acme Inc.", "acme"),
     ("Acme KG", "acme"),
-    pytest.param("Acme e.V.", "acme", marks=_XFAIL_TRAILING_PERIOD),
+    ("Acme e.V.", "acme"),
     ("Acme gGmbH", "acme"),
     ("Acme plc", "acme"),
     ("Acme GmbH & Co. KG", "acme"),

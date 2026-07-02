@@ -1,6 +1,6 @@
 # 🤖 Job Application Agent
 
-A LangGraph-powered job-matching agent that scrapes German job boards in parallel,
+A job-matching agent that scrapes German job boards in parallel,
 scores every posting against your CV with Claude, deduplicates across platforms,
 and persists the matches to a local SQLite-backed dashboard.
 
@@ -19,7 +19,6 @@ and persists the matches to a local SQLite-backed dashboard.
 
 | Layer | Tool |
 |---|---|
-| Agent framework | LangGraph |
 | LLM | Claude Haiku 4.5 via `langchain-anthropic` |
 | Job sources | Indeed, Stepstone, XING, LinkedIn, Glassdoor, Arbeitsagentur |
 | Scraping | Playwright (headless Chromium) + Requests |
@@ -57,9 +56,9 @@ and persists the matches to a local SQLite-backed dashboard.
         └──────────────────────────────────────────┘
 ```
 
-`main.py` wires this as a LangGraph `StateGraph` with three nodes
-(`fetch_jobs → validate_job_links → analyze_jobs`).
-`nodes/pipeline.py` is the shared implementation also used by `run_daily.py`.
+`nodes/pipeline.py` is the shared implementation. Both `main.py`
+(interactive run, with per-run log file) and `run_daily.py`
+(scheduled / scriptable run) call `run_pipeline()`.
 
 ## 🚀 Getting Started
 
@@ -112,7 +111,7 @@ streamlit run dashboard.py
 ## 📁 Project Structure
 ```
 job-agent/
-├── main.py                  # LangGraph entry point (interactive run)
+├── main.py                  # Interactive run entry point (per-run tee log)
 ├── run_daily.py             # Scriptable runner (also invokable manually)
 ├── dashboard.py             # Streamlit dashboard UI
 ├── cleanup_duplicates.py    # One-off DB dedup utility

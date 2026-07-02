@@ -15,7 +15,7 @@ your row when done.
 | 001  | Purge `my_cv.txt` from the public git history                        | P1       | S      | HIGH | —          | DONE (see plan post-exec notes) |
 | 002  | Establish a pytest baseline covering the pure-function logic         | P1       | M      | LOW  | —          | DONE (see plan post-exec notes) |
 | 003  | Small cleanup — unused deps, stale README, dead cover-letter wiring  | P2       | S      | LOW  | —          | DONE (partial — see plan post-exec notes) |
-| 004  | Escape scraped values in the Streamlit dashboard                     | P2       | M      | LOW  | 002 (soft) | TODO   |
+| 004  | Escape scraped values in the Streamlit dashboard                     | P2       | M      | LOW  | 002 (soft) | DONE — `_esc`/`_safe_url` helpers added; 23 interpolation sites wrapped in `_esc`, 3 URL sites gated through `_safe_url`; 11 helper tests added; suite 104p/0xf/0f. |
 | 005  | Collapse `main.py` onto `run_pipeline()` and drop LangGraph          | P3       | M      | LOW  | 002        | TODO   |
 | 006  | Fix `_COMPANY_SUFFIX_RE` trailing-period bugs (Ltd./Inc./e.V.)       | P3       | S      | LOW  | 002        | DONE — trailing `\b` swapped for `(?=\s|[.,;]|$)`; 3 xfails flipped green; suite 93p/0xf/0f (commit 2815617). |
 | 007  | Add `(f/m/d)` and `(f/m/x)` to `_GENDER_RE` (dedup regression fix)   | P2       | S      | LOW  | 002        | DONE — `_GENDER_RE` extended, 4 regression cases added; suite 90p/3xf/0f. |

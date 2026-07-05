@@ -283,7 +283,12 @@ _EXPERIENCE_EXTREME = re.compile(
     re.IGNORECASE,
 )
 _GERMANY_LOCATION = re.compile(
-    r"(germany|deutschland|nordrhein|bayern|berlin|hamburg|hessen|nrw|bochum|dortmund|cologne|köln|düsseldorf|münchen|frankfurt|stuttgart|essen|remote)",
+    r"(germany|deutschland|remote|"
+    r"nordrhein|nrw|bayern|baden-württemberg|württemberg|niedersachsen|sachsen|hessen|rheinland-pfalz|saarland|schleswig-holstein|mecklenburg|brandenburg|thüringen|thueringen|"
+    r"berlin|hamburg|münchen|muenchen|frankfurt|stuttgart|köln|koeln|cologne|düsseldorf|duesseldorf|dortmund|essen|bremen|hannover|nürnberg|nuernberg|leipzig|dresden|"
+    r"bochum|braunschweig|augsburg|bielefeld|bonn|kiel|mannheim|oldenburg|saarbrücken|saarbruecken|coburg|eschborn|wolfsburg|karlsruhe|wiesbaden|mainz|münster|muenster|"
+    r"aachen|hamm|duisburg|wuppertal|chemnitz|magdeburg|heidelberg|göttingen|goettingen|paderborn|regensburg|ulm|freiburg|mönchengladbach|moenchengladbach|krefeld|"
+    r"gelsenkirchen|hagen|oberhausen|leverkusen)",
     re.IGNORECASE,
 )
 

@@ -20,8 +20,19 @@ your row when done.
 | 006  | Fix `_COMPANY_SUFFIX_RE` trailing-period bugs (Ltd./Inc./e.V.)       | P3       | S      | LOW  | 002        | DONE — trailing `\b` swapped for `(?=\s|[.,;]|$)`; 3 xfails flipped green; suite 93p/0xf/0f (commit 2815617). |
 | 007  | Add `(f/m/d)` and `(f/m/x)` to `_GENDER_RE` (dedup regression fix)   | P2       | S      | LOW  | 002        | DONE — `_GENDER_RE` extended, 4 regression cases added; suite 90p/3xf/0f. |
 | 008  | Align scraper search terms with the operator's CV                    | P2       | M      | LOW  | 002 (soft) | DONE — SAP/ERP/ABAP dropped, Spring/Angular/Vue/React/sysadmin added; JUNIOR_TERMS 44, PLATFORM_SEARCH_TERMS 41; suite 90p/3xf/0f (commit 3d54bea). |
+| 009  | Applications follow-up workflow (status transitions + reminders)     | P2       | M      | LOW  | 002 (soft) | TODO |
+| 010  | Strong Match push notifications at end of `run_daily.py`             | P2       | S      | LOW  | —          | TODO |
+| 011  | Regex-based `job_category` taxonomy (overwrite LLM "Other" 47%)      | P2       | S      | LOW  | 002        | TODO |
+| 012  | Scrape-source health tab in the dashboard                            | P2       | S-M    | LOW  | —          | DONE — `nodes/scrape_log_parser.py` added (parse_scrape_log/platform_history/broken_platforms/top_terms_aggregated); `📈  Scrape Health` page wired into `dashboard.py` with broken-platform banner, yield table (zero-Added highlighted red), and aggregated top-terms; 11 parser tests added; suite 117p/0xf/0f (commit bd0a4d7). |
+| 013  | DB-native rejection reason capture on "Not Applying"                 | P2       | M      | LOW  | 009 (soft) | TODO |
+| 014  | Fix `_GERMANY_LOCATION` regex (194+ false "Outside Germany")         | P2       | S      | LOW  | 002        | DONE — `_GERMANY_LOCATION` extended with 11 Bundesländer + 40+ DE cities (incl. ASCII fallbacks); 28 positive + 9 negative parametrize cases added; suite 143p/0xf/0f (commit 958b8d8). |
+| 015  | Diagnose Indeed/Stepstone/XING silent scraper failures (spike)      | P3       | S      | LOW  | —          | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
+
+Plans 009–015 written by the `/improve next` skill on 2026-07-02,
+against commit `5bed640`. Findings surfaced by direct inspection of
+`data/applications.db` and `data/scrape_log.txt` on that date.
 
 ## Recommended order
 
@@ -75,6 +86,48 @@ The order above reflects leverage, not pure dependency:
 - **007 and 008 are independent of each other.** 007 targets the dedup
   key regex; 008 targets the search-term vocabulary. Landing order
   doesn't matter.
+- **002 → 011**: plan 011 replaces the LLM's `job_category` with a
+  regex classifier. The three SAP-cap tests at
+  `tests/test_analyzer_filters.py:105-135` (which came from plan 002)
+  are the safety net that proves the SAP cap still fires when the
+  taxonomy returns `SAP/ERP`.
+- **002 → 014**: plan 014 extends `_GERMANY_LOCATION` and grows the
+  existing `test_quick_reject_german_locations_pass` parametrize in
+  `tests/test_analyzer_filters.py`. That file exists after plan 002.
+- **009 → 013 (soft)**: both plans touch matched-jobs / applications
+  UX but at different files (`dashboard.py` applications page vs
+  today's-matches page). Order-independent; either can land first.
+  If plan 009 lands first, its "Rejected" button in the follow-up-due
+  list stays as-is — a future plan can swap the handler to open
+  plan 013's popover.
+- **010 and 012 are independent.** Both surface a "something is not
+  right" signal — 010 pushes it to the desktop when it's positive
+  (strong match), 012 pulls it up in the dashboard when it's negative
+  (broken scraper). No shared code.
+- **015 is a spike, not a code change.** Its output is a findings
+  report at `plans/015-findings.md`; it may itself birth follow-up
+  plans (retire XING, rewrite Stepstone selectors, etc.) depending
+  on what the operator decides.
+
+## Recommended order for plans 009–015
+
+Leverage over strict dependency:
+
+1. **014 first** — one-line regex fix, immediately clears 194+ false
+   rejections on the very next scrape. High leverage, tiny risk.
+2. **012 next** — cheap parser + dashboard tab. Turns silent scraper
+   failures into a red banner. Enables informed decision on 015.
+3. **011 next** — small standalone regex classifier, clears the "Other
+   47%" filter blindspot. Doesn't block anything else.
+4. **010 next** — one Windows toast at end of run_daily. Small but
+   requires a new dep (`winotify`) and Windows testing.
+5. **009 next** — larger UX plan (applications page rework). Do this
+   before 013 so the rejection-reason UX has a clean applications-page
+   context to slot into.
+6. **013 last** — feedback-loop foundation. Small blast radius; belongs
+   after 009 so the two UX plans land in the right order.
+7. **015 whenever** — spike; the report tells you what plan(s) to
+   write next.
 
 ## Findings considered and rejected
 
@@ -117,21 +170,63 @@ Listed here so a future audit doesn't re-discover them.
   had 159 rows vs the usual ~80 because it followed a 6-day gap
   (2026-06-23 was the previous run). Not worth a plan.
 
-## Direction findings (not planned, surfaced for the operator to decide)
+## Direction findings (2026-07-02 audit) — status
 
-These appeared in the audit but are product/feature decisions, not bugs:
+The `/improve next` audit on 2026-07-02 (against commit `5bed640`)
+surfaced five direction findings. All five have been turned into plans
+009–013. Two associated bug leads became plans 014–015.
 
-- **Close the feedback loop** — `data/feedback_log.txt` is write-only.
-  Mining "applied → interview" outcomes back into scoring would make the
-  agent personal over time. Probably 3+ months out (needs data first).
-- **Decide on cover letters** — the feature was removed but a column
-  lingers. Plan 003 cleans the Python side; the schema column stays as a
-  decision marker. Either re-introduce a generator or run a one-off
-  migration to drop the column.
-- **High-match notifications** — push or email when score ≥ 85 at end of
-  `run_daily.py`.
-- **Scrape analytics tab** — `scrape_log.txt` already records per-term
-  yield; surface it in the dashboard to tune `PLATFORM_SEARCH_TERMS`.
+Original direction findings from the 2026-06-30 audit — status update:
 
-Tell the advisor (`/improve next` or `/improve plan <description>`) if you
-want one of these turned into a real plan.
+- **Close the feedback loop** — split into two plans. **Plan 013**
+  captures the signal (rejection reasons on "Not Applying"). The
+  calibration step (scorer prompt / regex tuning based on captured
+  reasons) is intentionally deferred — no data to calibrate against
+  yet. Revisit once ~50 reasoned rejections have accumulated.
+- **Decide on cover letters** — still open. Plan 003 cleaned the
+  Python side; the `cover_letter` schema column stays as a decision
+  marker. Not turned into a plan on 2026-07-02: waiting for the
+  operator to decide re-introduce vs remove. Ask
+  (`/improve plan drop-cover-letter-column`) when you decide.
+- **High-match notifications** — became **plan 010** (Windows toast
+  at end of run_daily.py, threshold 85).
+- **Scrape analytics tab** — became **plan 012** (dashboard page
+  parsing `scrape_log.txt`, with a "3 consecutive zero-added → alert"
+  rule).
+
+New direction findings from the 2026-07-02 audit:
+
+- **Applications lifecycle is broken** — all 139 apps stuck at
+  `status = "Sent"`. Became **plan 009** (follow-up date defaults +
+  reminders section on applications page).
+- **LLM `job_category` is 47% "Other"** — the taxonomy filter is
+  unusable. Became **plan 011** (regex classifier that overwrites the
+  LLM value; the LLM field stays in the prompt to preserve cache
+  reuse).
+
+Bug leads from the same DB inspection:
+
+- **`_GERMANY_LOCATION` regex misses German cities** — 194+ false
+  "Outside Germany" rejections for Braunschweig / Bremen / Kiel /
+  Hannover etc. Became **plan 014**.
+- **Indeed / Stepstone / XING added zero jobs on two consecutive
+  runs** — silent scraper failure. Became **plan 015** (spike, not a
+  fix — investigation deliverable is a findings report; fix plans
+  spin out of the findings).
+
+Deferred (not turned into plans on 2026-07-02):
+
+- **`data/feedback_log.txt` will become orphaned** after plan 013
+  removes the UI hook. Do NOT delete in the same plan (respect the
+  past + keep the module importable). Delete in a follow-up cleanup
+  once operator confirms nothing else reads it. See plan 013's
+  maintenance notes.
+- **Push-to-phone / email transport** for strong-match notifications.
+  Plan 010 does Windows toast only. A future plan can add ntfy or
+  Pushover if the operator wants notifications outside their desk.
+- **Scorer calibration from captured rejection reasons.** Deferred by
+  plan 013 to a later plan once ≥ 50 reasoned rejections exist. See
+  plan 013's maintenance notes for the SQL to check the threshold.
+
+Tell the advisor (`/improve next` or `/improve plan <description>`) if
+you want one of these turned into a real plan.

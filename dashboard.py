@@ -12,6 +12,9 @@ from nodes.tracker import (
     get_not_matched_jobs, get_scrape_dates,
     promote_not_matched_to_matched,
 )
+from nodes.scrape_log_parser import (
+    parse_scrape_log, platform_history, broken_platforms, top_terms_aggregated,
+)
 import os
 import html
 from urllib.parse import urlparse
@@ -57,6 +60,11 @@ def load_matched_jobs(date_filter: str, new_only: bool = False):
 @st.cache_data(ttl=300)
 def load_not_matched_jobs(date_filter: str):
     return get_not_matched_jobs(date_filter)
+
+@st.cache_data(ttl=60)
+def load_scrape_runs():
+    """Read the scrape log fresh at most once a minute."""
+    return parse_scrape_log()
 
 st.set_page_config(
     page_title="Job Agent",
@@ -327,7 +335,12 @@ with st.sidebar:
     matched   = load_matched_jobs(RUN_DATE)
     page      = st.radio(
         "nav",
-        ["📊  My Applications", "🔍  Today's Matches", "❌  Not Matched"],
+        [
+            "📊  My Applications",
+            "🔍  Today's Matches",
+            "❌  Not Matched",
+            "📈  Scrape Health",
+        ],
         label_visibility="collapsed"
     )
 
@@ -730,6 +743,69 @@ elif page == "❌  Not Matched":
                         st.cache_data.clear()
                         st.success("Moved to Matched — open the Today's Matches tab to mark Applied / Not Applying.")
                         st.rerun()
+
+# ══════════════════════════════════════════════════
+# PAGE 4 — SCRAPE HEALTH
+# ══════════════════════════════════════════════════
+elif page == "📈  Scrape Health":
+
+    st.title("Scrape Source Health")
+    st.markdown("Per-platform yield from the last runs, parsed from `data/scrape_log.txt`.")
+    st.markdown("---")
+
+    runs = load_scrape_runs()
+
+    if not runs:
+        st.info("📭 No scrape summaries yet. Run `python main.py` first.")
+    else:
+        # ── Broken-platform alert ────────────────────────
+        broken = broken_platforms(runs, streak=3)
+        if broken:
+            names = ", ".join(_esc(b) for b in broken)
+            st.markdown(
+                f'<div style="padding:10px 14px; margin-bottom:12px; '
+                f'border-left:3px solid #f85149; background:#3d0f10; '
+                f'border-radius:4px; color:#e6e6e6;">'
+                f'⚠️ <strong>{len(broken)} platform(s) added zero jobs across the last 3 runs:</strong> {names}. '
+                f'Likely bot-block or broken selectors. See <code>plans/015-diagnose-silent-scraper-failures.md</code>.'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        # ── Per-platform yield table ──────────────────────
+        st.subheader("Recent runs")
+        num_runs = st.slider("How many recent runs to show", 3, 20, min(10, len(runs)))
+        window = runs[-num_runs:]
+
+        platforms = sorted({p for r in window for p in r["platforms"]})
+        rows = []
+        for run in window:
+            row = {"Timestamp": run["timestamp"]}
+            for p in platforms:
+                row[p] = run["platforms"].get(p, {}).get("added", None)
+            row["TOTAL"] = (run.get("total") or {}).get("added", None)
+            rows.append(row)
+
+        df = pd.DataFrame(rows)
+        # newest at the top
+        df = df.iloc[::-1].reset_index(drop=True)
+
+        def _highlight_zero(v):
+            if v == 0:
+                return "background-color:#3d0f10; color:#f85149;"
+            return ""
+
+        styled = df.style.applymap(_highlight_zero, subset=platforms)
+        st.dataframe(styled, use_container_width=True, hide_index=True)
+
+        # ── Top terms aggregated ──────────────────────────
+        st.subheader("Top search terms (aggregated across window)")
+        top = top_terms_aggregated(window, limit=15)
+        if top:
+            top_df = pd.DataFrame(top, columns=["Term", "Jobs added"])
+            st.dataframe(top_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No top-terms line found in the recent runs.")
 
 st.markdown("---")
 st.caption("🤖 Job Agent — powered by Claude AI & LangGraph")

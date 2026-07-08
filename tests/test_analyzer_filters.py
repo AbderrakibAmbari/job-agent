@@ -52,9 +52,27 @@ def test_quick_reject_remote_location_passes():
     assert _quick_reject({"title": "Junior Backend", "location": "Remote"}) is None
 
 
-@pytest.mark.parametrize("loc", ["Bochum", "NRW", "Deutschland"])
+@pytest.mark.parametrize("loc", [
+    "Bochum", "NRW", "Deutschland",
+    "Braunschweig", "Bremen", "Kiel", "Hannover", "Oldenburg", "Bonn",
+    "Nürnberg", "Eschborn", "Augsburg", "Wolfsburg", "Saarbrücken",
+    "Dresden", "Coburg", "Bielefeld", "Karlsruhe", "Wiesbaden", "Mainz",
+    "Münster", "Aachen", "Duisburg", "Wuppertal", "Leipzig",
+    "Frankfurt am Main", "Berlin Mitte", "München, Bayern",
+    "Baden-Württemberg", "Niedersachsen", "Rheinland-Pfalz",
+])
 def test_quick_reject_german_locations_pass(loc):
     assert _quick_reject({"title": "Junior Backend", "location": loc}) is None
+
+
+@pytest.mark.parametrize("loc", [
+    "Zürich", "Vienna", "Wien", "London", "Warsaw", "Amsterdam",
+    "Paris", "Prague", "Zurich",
+])
+def test_quick_reject_non_german_locations_rejected(loc):
+    reason = _quick_reject({"title": "Junior Backend", "location": loc})
+    assert reason is not None
+    assert "Outside Germany" in reason
 
 
 def test_quick_reject_empty_location_passes():

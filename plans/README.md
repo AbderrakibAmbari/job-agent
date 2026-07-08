@@ -25,7 +25,7 @@ your row when done.
 | 011  | Regex-based `job_category` taxonomy (overwrite LLM "Other" 47%)      | P2       | S      | LOW  | 002        | TODO |
 | 012  | Scrape-source health tab in the dashboard                            | P2       | S-M    | LOW  | —          | TODO |
 | 013  | DB-native rejection reason capture on "Not Applying"                 | P2       | M      | LOW  | 009 (soft) | TODO |
-| 014  | Fix `_GERMANY_LOCATION` regex (194+ false "Outside Germany")         | P2       | S      | LOW  | 002        | TODO |
+| 014  | Fix `_GERMANY_LOCATION` regex (194+ false "Outside Germany")         | P2       | S      | LOW  | 002        | DONE — `_GERMANY_LOCATION` extended with 11 Bundesländer + 40+ DE cities (incl. ASCII fallbacks); 28 positive + 9 negative parametrize cases added; suite 143p/0xf/0f (commit 958b8d8). |
 | 015  | Diagnose Indeed/Stepstone/XING silent scraper failures (spike)      | P3       | S      | LOW  | —          | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)

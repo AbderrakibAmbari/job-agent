@@ -27,6 +27,8 @@ your row when done.
 | 013  | DB-native rejection reason capture on "Not Applying"                 | P2       | M      | LOW  | 009 (soft) | TODO |
 | 014  | Fix `_GERMANY_LOCATION` regex (194+ false "Outside Germany")         | P2       | S      | LOW  | 002        | DONE — `_GERMANY_LOCATION` extended with 11 Bundesländer + 40+ DE cities (incl. ASCII fallbacks); 28 positive + 9 negative parametrize cases added; suite 143p/0xf/0f (commit 958b8d8). |
 | 015  | Diagnose Indeed/Stepstone/XING silent scraper failures (spike)      | P3       | S      | LOW  | —          | TODO |
+| 016  | One-shot dedup of `applications.db`                                  | P2       | S      | LOW  | —          | DONE — 1 URL dup in `applications` (kept id=11 "etalytics GmbH"), 24 title+company dups in `not_matched_jobs` (kept MIN(id) per group); counts 139→138 / 777 / 2945→2921; backup at `data/applications.db.bak.20260709_081708`. No code changes. |
+| 017  | Canonical URL at write time + `applications` UNIQUE index          | P2       | M      | LOW  | 016        | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 

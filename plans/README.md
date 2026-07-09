@@ -23,7 +23,7 @@ your row when done.
 | 009  | Applications follow-up workflow (status transitions + reminders)     | P2       | M      | LOW  | 002 (soft) | TODO |
 | 010  | Strong Match push notifications at end of `run_daily.py`             | P2       | S      | LOW  | —          | TODO |
 | 011  | Regex-based `job_category` taxonomy (overwrite LLM "Other" 47%)      | P2       | S      | LOW  | 002        | TODO |
-| 012  | Scrape-source health tab in the dashboard                            | P2       | S-M    | LOW  | —          | TODO |
+| 012  | Scrape-source health tab in the dashboard                            | P2       | S-M    | LOW  | —          | DONE — `nodes/scrape_log_parser.py` added (parse_scrape_log/platform_history/broken_platforms/top_terms_aggregated); `📈  Scrape Health` page wired into `dashboard.py` with broken-platform banner, yield table (zero-Added highlighted red), and aggregated top-terms; 11 parser tests added; suite 117p/0xf/0f (commit a059eb4). |
 | 013  | DB-native rejection reason capture on "Not Applying"                 | P2       | M      | LOW  | 009 (soft) | TODO |
 | 014  | Fix `_GERMANY_LOCATION` regex (194+ false "Outside Germany")         | P2       | S      | LOW  | 002        | DONE — `_GERMANY_LOCATION` extended with 11 Bundesländer + 40+ DE cities (incl. ASCII fallbacks); 28 positive + 9 negative parametrize cases added; suite 143p/0xf/0f (commit 958b8d8). |
 | 015  | Diagnose Indeed/Stepstone/XING silent scraper failures (spike)      | P3       | S      | LOW  | —          | TODO |

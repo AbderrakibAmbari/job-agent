@@ -39,8 +39,67 @@ def _title_company_key(title: str, company: str) -> str:
     return t
 
 
+def _normalize_url(url: str) -> str:
+    """Canonical form used for storage + UNIQUE index.
+
+    Strips query string, trailing slash, and lowercases. Idempotent —
+    safe to call on already-canonical URLs. Must stay in sync with
+    `nodes.scraper._url_key`.
+    """
+    return url.split("?")[0].rstrip("/").lower() if url else ""
+
+
 def _conn():
     return sqlite3.connect(DB_PATH)
+
+
+def _backfill_normalize_urls(conn):
+    """One-shot: rewrite job_url in all three tables to canonical form.
+    Idempotent — subsequent runs find already-canonical URLs and no-op.
+    Collisions are impossible if plan 016 was applied; if any occur (e.g.
+    fresh DB with unexpected data), the earliest id wins and later dupes
+    are deleted.
+    """
+    cur = conn.cursor()
+    for table in ("applications", "matched_jobs", "not_matched_jobs"):
+        rows = cur.execute(
+            f"SELECT id, job_url FROM {table} "
+            f"WHERE job_url IS NOT NULL AND job_url != ''"
+        ).fetchall()
+        # Build a normalized-URL -> surviving-id map (keep earliest id per group)
+        keeper = {}
+        to_delete = []
+        for rid, url in rows:
+            norm = _normalize_url(url)
+            if not norm:
+                continue
+            if norm in keeper:
+                to_delete.append(rid)
+            else:
+                keeper[norm] = rid
+        # Delete late-arriving collisions
+        if to_delete:
+            cur.executemany(
+                f"DELETE FROM {table} WHERE id = ?",
+                [(rid,) for rid in to_delete],
+            )
+            logger.info(
+                "Backfill: dropped %d URL collisions from %s", len(to_delete), table
+            )
+        # Now UPDATE only rows whose stored URL differs from canonical
+        updated = 0
+        for norm, rid in keeper.items():
+            cur.execute(
+                f"UPDATE {table} SET job_url = ? WHERE id = ? AND job_url != ?",
+                (norm, rid, norm),
+            )
+            if cur.rowcount:
+                updated += 1
+        if updated:
+            logger.info(
+                "Backfill: normalized %d URLs in %s", updated, table
+            )
+    conn.commit()
 
 
 def init_db():
@@ -113,6 +172,16 @@ def init_db():
             )
         """)
 
+        # Plan 017: canonicalize URLs before creating UNIQUE indexes.
+        # Idempotent — no-op once URLs are already canonical.
+        _backfill_normalize_urls(conn)
+
+        c.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_url
+            ON applications(job_url)
+            WHERE job_url IS NOT NULL AND job_url != ''
+        """)
+
         c.execute("""
             CREATE UNIQUE INDEX IF NOT EXISTS idx_not_matched_url
             ON not_matched_jobs(job_url)
@@ -160,12 +229,13 @@ def backup_db():
 
 def save_application(company: str, job_title: str, platform: str,
                      cover_letter: str, job_url: str) -> None:
+    norm_url = _normalize_url(job_url)
     with _conn() as conn:
         c = conn.cursor()
         c.execute("""
             SELECT id FROM applications
             WHERE job_url = ? OR (company = ? AND job_title = ?)
-        """, (job_url, company, job_title))
+        """, (norm_url, company, job_title))
         if c.fetchone():
             return
         c.execute("""
@@ -176,7 +246,7 @@ def save_application(company: str, job_title: str, platform: str,
         """, (
             company, job_title, platform,
             datetime.now().strftime("%Y-%m-%d"),
-            cover_letter, job_url,
+            cover_letter, norm_url,
             datetime.now().strftime("%Y-%m-%d"),
         ))
         conn.commit()
@@ -189,8 +259,10 @@ def save_matched_jobs(jobs: list) -> None:
     with _conn() as conn:
         c = conn.cursor()
         for job in jobs:
+            raw_url = job.get("url", "")
+            norm_url = _normalize_url(raw_url)
             all_urls = json.dumps(
-                job.get("urls", [{"platform": job.get("platform", ""), "url": job.get("url", "")}])
+                job.get("urls", [{"platform": job.get("platform", ""), "url": raw_url}])
             )
             c.execute("""
                 INSERT OR IGNORE INTO matched_jobs
@@ -204,7 +276,7 @@ def save_matched_jobs(jobs: list) -> None:
                 job.get("company", ""),
                 job.get("location", ""),
                 job.get("platform", ""),
-                job.get("url", "").strip(),
+                norm_url,
                 job.get("score", 0),
                 job.get("recommendation", ""),
                 " | ".join(job.get("match_reasons", [])),
@@ -223,7 +295,7 @@ def save_matched_jobs(jobs: list) -> None:
                 # Job already in DB — merge any new platform URLs
                 c.execute(
                     "SELECT id, all_urls FROM matched_jobs WHERE job_url = ?",
-                    (job.get("url", "").strip(),)
+                    (norm_url,)
                 )
                 row = c.fetchone()
                 if row:
@@ -261,7 +333,7 @@ def save_not_matched_jobs(jobs: list) -> None:
                 job.get("company", ""),
                 job.get("location", ""),
                 job.get("platform", ""),
-                job.get("url", "").strip(),
+                _normalize_url(job.get("url", "")),
                 job.get("score", 0),
                 job.get("recommendation", ""),
                 " | ".join(job.get("match_reasons", [])),
@@ -324,7 +396,7 @@ def promote_not_matched_to_matched(nm_id: int) -> bool:
              date_found, applied, all_urls, job_category)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
         """, (
-            job_title, company, location, platform, (job_url or "").strip(),
+            job_title, company, location, platform, _normalize_url(job_url or ""),
             match_score, recommendation, match_reasons, missing,
             contract_type, work_mode, "manual review", "",
             date_found or today, all_urls, "Other",
@@ -398,8 +470,9 @@ def get_known_urls() -> set:
             "SELECT job_url FROM not_matched_jobs WHERE job_url IS NOT NULL AND job_url != ''"
         ).fetchall()
     urls = set()
+    # URLs stored canonical since plan 017; no runtime normalization needed
     for (url,) in matched + not_matched:
-        urls.add(url.split("?")[0].rstrip("/").lower())
+        urls.add(url)
     return urls
 
 

@@ -29,6 +29,7 @@ your row when done.
 | 015  | Diagnose Indeed/Stepstone/XING silent scraper failures (spike)      | P3       | S      | LOW  | —          | DONE (investigation — see plans/015-findings.md) |
 | 016  | One-shot dedup of `applications.db`                                  | P2       | S      | LOW  | —          | DONE — 1 URL dup in `applications` (kept id=11 "etalytics GmbH"), 24 title+company dups in `not_matched_jobs` (kept MIN(id) per group); counts 139→138 / 777 / 2945→2921; backup at `data/applications.db.bak.20260709_081708`. No code changes. |
 | 017  | Canonical URL at write time + `applications` UNIQUE index          | P2       | M      | LOW  | 016        | DONE — `_normalize_url` wired into 4 write paths (save_application/save_matched_jobs/save_not_matched_jobs/promote_not_matched_to_matched); idempotent backfill in `init_db()` normalized existing URLs; UNIQUE partial index on `applications.job_url`; `get_known_urls` simplified; 13 new tests; suite 119p/0xf/0f (commit a580e5d). |
+| 018  | Diagnose Stepstone with headed browser + selector rewrite OR retire  | P2       | S+M    | LOW-MED | 015     | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 

@@ -391,7 +391,7 @@ PLATFORM_CONFIGS = {
             f"?wp={days}"
         ),
         "cookie_selector": "button[id='ccmgt_explicit_accept']",
-        "card_selector": "article[data-at='job-item'], article[class*='job'], div[class*='JobCard'], article",
+        "card_selector": "article[data-at='job-item']",
         "selectors": {
             "title": [
                 "[data-at='job-item-title']",

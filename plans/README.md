@@ -20,6 +20,7 @@ your row when done.
 | 006  | Fix `_COMPANY_SUFFIX_RE` trailing-period bugs (Ltd./Inc./e.V.)       | P3       | S      | LOW  | 002        | DONE — trailing `\b` swapped for `(?=\s|[.,;]|$)`; 3 xfails flipped green; suite 93p/0xf/0f (commit 2815617). |
 | 007  | Add `(f/m/d)` and `(f/m/x)` to `_GENDER_RE` (dedup regression fix)   | P2       | S      | LOW  | 002        | DONE — `_GENDER_RE` extended, 4 regression cases added; suite 90p/3xf/0f. |
 | 008  | Align scraper search terms with the operator's CV                    | P2       | M      | LOW  | 002 (soft) | DONE — SAP/ERP/ABAP dropped, Spring/Angular/Vue/React/sysadmin added; JUNIOR_TERMS 44, PLATFORM_SEARCH_TERMS 41; suite 90p/3xf/0f (commit 3d54bea). |
+| 018  | Diagnose Stepstone with headed browser + selector rewrite OR retire  | P2       | S      | LOW  | 015     | DONE — Phase 1 recon (headless) revealed the DOM was intact; root cause was `card_selector` fallback chain matching filter-facet `<article>` elements alongside real jobs (25 real + 16 facets = 41 cards, all failing `_build_job`, tripping broken-selector bail-out). Fix: `card_selector` reduced to single value `article[data-at='job-item']`. Inner selectors untouched (all still working). 2 regression tests added; post-fix live rerun 115 jobs / 25 cards / 2 added on first row; suite 108p/0xf/0f. |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 

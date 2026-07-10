@@ -30,7 +30,7 @@ your row when done.
 | 016  | One-shot dedup of `applications.db`                                  | P2       | S      | LOW  | —          | DONE — 1 URL dup in `applications` (kept id=11 "etalytics GmbH"), 24 title+company dups in `not_matched_jobs` (kept MIN(id) per group); counts 139→138 / 777 / 2945→2921; backup at `data/applications.db.bak.20260709_081708`. No code changes. |
 | 017  | Canonical URL at write time + `applications` UNIQUE index          | P2       | M      | LOW  | 016        | DONE — `_normalize_url` wired into 4 write paths (save_application/save_matched_jobs/save_not_matched_jobs/promote_not_matched_to_matched); idempotent backfill in `init_db()` normalized existing URLs; UNIQUE partial index on `applications.job_url`; `get_known_urls` simplified; 13 new tests; suite 119p/0xf/0f (commit a580e5d). |
 | 018  | Diagnose Stepstone with headed browser + selector rewrite OR retire  | P2       | S      | LOW  | 015     | DONE — Phase 1 recon (headless) revealed the DOM was intact; root cause was `card_selector` fallback chain matching filter-facet `<article>` elements alongside real jobs (25 real + 16 facets = 41 cards, all failing `_build_job`, tripping broken-selector bail-out). Fix: `card_selector` reduced to single value `article[data-at='job-item']`. Inner selectors untouched. 2 regression tests added; post-fix live rerun `JOBS=115` from 64 stats rows, `cards=25` per row (was 41); suite 169p/0xf/0f (commit 494a213). |
-| 019  | Retire Indeed platform (bot-blocked, 0 jobs contributed ever)      | P3       | S      | LOW  | 015     | TODO |
+| 019  | Retire Indeed platform (bot-blocked, 0 jobs contributed ever)      | P3       | S      | LOW  | 015     | DONE (retired) — `PLATFORM_CONFIGS["Indeed"]` deleted; 0 rows ever contributed to `matched_jobs`/`not_matched_jobs` across full retained log history; ~30–60s/run saved and health-dashboard "zero-added Indeed" false alarm silenced. Suite 169p/0xf/0f. |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -137,6 +137,17 @@ Leverage over strict dependency:
 
 These were surfaced during the audit and consciously NOT turned into plans.
 Listed here so a future audit doesn't re-discover them.
+
+- **XING same-day-outage hypothesis** (2026-07-09, Phase 1 recon
+  for a would-be plan 019 on XING): tested hypothesis that XING
+  shared Stepstone's union-chain facet-pollution bug (same-day
+  2026-06-19 outage in plan 015). Live headless recon returned
+  `cards_found=21` and `added=1` per row across all Bundesländer —
+  XING self-recovered between plan 015's investigation on 2026-07-02
+  and this recon. No fix needed. XING's `card_selector` chain
+  (`[data-testid='job-posting-item'], article`) has the same shape
+  Stepstone's did, so if XING breaks again, apply plan 018's
+  one-line pattern (drop the `, article` fallback).
 
 - **Three near-duplicate part-time regexes** (`nodes/scraper.py:97`,
   `nodes/analyzer.py:46`, `nodes/analyzer.py:302`): real DRY concern, but

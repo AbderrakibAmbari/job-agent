@@ -145,9 +145,11 @@ def init_db():
 
         # Safe column migrations
         for col, definition in [
-            ("applied",       "INTEGER DEFAULT 0"),
-            ("all_urls",      "TEXT DEFAULT '[]'"),
-            ("job_category",  "TEXT DEFAULT 'Other'"),
+            ("applied",           "INTEGER DEFAULT 0"),
+            ("all_urls",          "TEXT DEFAULT '[]'"),
+            ("job_category",      "TEXT DEFAULT 'Other'"),
+            ("rejection_reason",  "TEXT DEFAULT ''"),
+            ("rejection_note",    "TEXT DEFAULT ''"),
         ]:
             try:
                 c.execute(f"ALTER TABLE matched_jobs ADD COLUMN {col} {definition}")
@@ -480,6 +482,61 @@ def update_matched_job_applied(job_id: int, state: int) -> None:
             (state, job_id)
         )
         conn.commit()
+
+
+_REJECTION_REASONS = (
+    "not-tech",
+    "wrong-tech",
+    "wrong-seniority",
+    "wrong-location",
+    "wrong-contract",
+    "employer-mismatch",
+    "already-applied-elsewhere",
+    "link-broken",
+    "other",
+)
+
+
+def update_matched_job_rejection(job_id: int, reason: str, note: str = "") -> None:
+    """Mark a matched job as not-applying with a captured reason.
+
+    reason: one of _REJECTION_REASONS (soft validation — unknown reasons are
+    stored verbatim so we don't lose data if the dropdown drifts).
+    """
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE matched_jobs "
+            "SET applied = 2, rejection_reason = ?, rejection_note = ? "
+            "WHERE id = ?",
+            (reason or "", note or "", job_id)
+        )
+        conn.commit()
+
+
+def get_rejection_row(job_id: int):
+    """Return (reason, note) for a job, or None if the job doesn't exist."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT rejection_reason, rejection_note FROM matched_jobs WHERE id = ?",
+            (job_id,)
+        ).fetchone()
+    if not row:
+        return None
+    return (row[0] or "", row[1] or "")
+
+
+def get_rejection_reason_counts() -> list:
+    """Aggregate reason counts across matched_jobs. Empty reason excluded.
+
+    Returns: list[tuple[str, int]] sorted desc by count.
+    """
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT rejection_reason, COUNT(*) FROM matched_jobs "
+            "WHERE applied = 2 AND rejection_reason != '' "
+            "GROUP BY rejection_reason ORDER BY 2 DESC"
+        ).fetchall()
+    return [(r[0], r[1]) for r in rows]
 
 
 def get_applied_status(job_id: int) -> int:

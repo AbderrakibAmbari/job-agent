@@ -5,7 +5,7 @@ import shutil
 import glob
 import logging
 import os
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 DB_PATH = "data/applications.db"
@@ -238,6 +238,7 @@ def save_application(company: str, job_title: str, platform: str,
         """, (norm_url, company, job_title))
         if c.fetchone():
             return
+        today = datetime.now().strftime("%Y-%m-%d")
         c.execute("""
             INSERT INTO applications
             (company, job_title, platform, date_applied,
@@ -245,10 +246,51 @@ def save_application(company: str, job_title: str, platform: str,
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             company, job_title, platform,
-            datetime.now().strftime("%Y-%m-%d"),
-            cover_letter, norm_url,
-            datetime.now().strftime("%Y-%m-%d"),
+            today, cover_letter, norm_url,
+            _default_followup_date(today),
         ))
+        conn.commit()
+
+
+def _default_followup_date(from_date_str: str, days: int = 7) -> str:
+    """Compute the default follow-up date. Pure function — safe to unit-test.
+
+    from_date_str: 'YYYY-MM-DD'
+    Returns: 'YYYY-MM-DD' of from_date + days.
+    """
+    d = date.fromisoformat(from_date_str)
+    return (d + timedelta(days=days)).strftime("%Y-%m-%d")
+
+
+def get_due_followups(today_str: str = None) -> list:
+    """Return applications with status in ('Sent', 'Waiting') AND
+    follow_up_date <= today. Ordered oldest-follow-up first.
+
+    Rows shape matches applications table:
+    (id, company, job_title, platform, date_applied, status,
+     cover_letter, job_url, follow_up_date)
+    """
+    today = today_str or datetime.now().strftime("%Y-%m-%d")
+    with _conn() as conn:
+        return conn.execute("""
+            SELECT id, company, job_title, platform, date_applied, status,
+                   cover_letter, job_url, follow_up_date
+            FROM applications
+            WHERE status IN ('Sent', 'Waiting')
+              AND follow_up_date IS NOT NULL
+              AND follow_up_date != ''
+              AND follow_up_date <= ?
+            ORDER BY follow_up_date ASC, date_applied ASC
+        """, (today,)).fetchall()
+
+
+def update_followup_date(app_id: int, new_date: str) -> None:
+    """Update follow_up_date for a given application. new_date: 'YYYY-MM-DD'."""
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE applications SET follow_up_date = ? WHERE id = ?",
+            (new_date, app_id)
+        )
         conn.commit()
 
 

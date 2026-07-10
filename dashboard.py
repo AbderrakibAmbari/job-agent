@@ -17,6 +17,7 @@ from nodes.tracker import (
 from nodes.scrape_log_parser import (
     parse_scrape_log, platform_history, broken_platforms, top_terms_aggregated,
 )
+from streamlit_shortcuts import shortcut_button  # Plan 022 Phase E
 import os
 import html
 from urllib.parse import urlparse
@@ -471,12 +472,17 @@ def _render_job_detail_right(job: tuple, applied_map: dict, all_jobs: list):
     st.markdown("---")
 
     # ── Action buttons ──
-    st.markdown("**Triage**")
-    btn_col1, btn_col2 = st.columns(2)
+    # Shortcuts: a = Applied · n = Not-Applying quick (reason=other) · → = skip
+    # `n` cannot open a popover programmatically in Streamlit — it commits with
+    # reason="other" as a fast-path. Use the popover mouse-click for specific reasons.
+    st.markdown("**Triage**  ·  `a` Applied  ·  `n` skip w/ reason=other  ·  `→` next")
+    btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 0.6])
 
     with btn_col1:
-        if st.button(
+        if shortcut_button(
             "✅ Applied",
+            shortcut="a",
+            hint=False,
             key=f"v2_applied_{job_id}",
             type="primary" if apply_state != 1 else "secondary",
             use_container_width=True,
@@ -516,6 +522,34 @@ def _render_job_detail_right(job: tuple, applied_map: dict, all_jobs: list):
                 st.cache_data.clear()
                 _auto_advance(job_id, all_jobs, applied_map)
                 st.rerun()
+
+    with btn_col3:
+        if shortcut_button(
+            "→",
+            shortcut="arrowright",
+            hint=False,
+            key=f"v2_next_{job_id}",
+            use_container_width=True,
+            help="Skip to next unreviewed",
+        ):
+            _auto_advance(job_id, all_jobs, applied_map)
+            st.rerun()
+
+    # `n` shortcut: quick-reject with reason=other, no note. A Streamlit
+    # popover cannot be opened programmatically, so `n` fires a fast-path
+    # commit. Users who want a specific reason click the popover instead.
+    if shortcut_button(
+        "⏭ Skip w/o reason",
+        shortcut="n",
+        hint=False,
+        key=f"v2_n_quick_{job_id}",
+        type="secondary",
+        use_container_width=True,
+    ):
+        update_matched_job_rejection(job_id, "other", "")
+        st.cache_data.clear()
+        _auto_advance(job_id, all_jobs, applied_map)
+        st.rerun()
 
     if apply_state == 2:
         existing = get_rejection_row(job_id) or ("", "")

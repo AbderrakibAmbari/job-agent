@@ -4,9 +4,18 @@
 > verification command. Stop on any STOP condition — do not improvise.
 > Update the status row in `plans/README.md` when done.
 >
-> **Drift check (run first)**: `git diff --stat 5bed640..HEAD -- nodes/analyzer.py nodes/tracker.py tests/test_analyzer_filters.py`
+> **Drift check (run first)**: `git diff --stat 884bbbd..HEAD -- nodes/analyzer.py nodes/tracker.py tests/test_analyzer_filters.py`
 > If any file changed, compare the "Current state" excerpts against
 > live code before proceeding.
+>
+> **Re-affirmation note (2026-07-10, `884bbbd`)**: this plan was
+> originally written at `5bed640` on 2026-07-02. Verified against
+> live code at `884bbbd`: line numbers `_apply_experience_cap` (72),
+> SAP-cap read (98), LLM assignment (237), LLM-crash fallback (263)
+> still match. The "third fallback" at line 348 in the original plan
+> is now at line 353 (minor drift — same behavior). Baseline test
+> count is 178 → target after this plan is ≥ 178 + ~33 new = 211
+> passed.
 
 ## Status
 
@@ -17,7 +26,7 @@
   pytest infra and the existing SAP-cap tests at
   `tests/test_analyzer_filters.py:105-135` that read `job_category`)
 - **Category**: direction (feature — filter quality)
-- **Planned at**: commit `5bed640`, 2026-07-02
+- **Planned at**: commit `5bed640`, 2026-07-02 (re-affirmed at `884bbbd`, 2026-07-10)
 
 ## Why this matters
 
@@ -112,7 +121,7 @@ Repo conventions:
 | Activate venv | `source venv/Scripts/activate` | prompt `(venv)` |
 | Sanity-check taxonomy | see Step 1 verify block | prints correct label |
 | Run analyzer tests | `venv/Scripts/python.exe -m pytest tests/test_analyzer_filters.py -v` | all pass |
-| Full suite | `venv/Scripts/python.exe -m pytest -q` | 106+ passed |
+| Full suite | `venv/Scripts/python.exe -m pytest -q` | 178 passed baseline → ~211 passed after this plan |
 
 ## Scope
 
@@ -373,8 +382,8 @@ Run the full suite:
 venv/Scripts/python.exe -m pytest -q
 ```
 
-Expected: total passed ≥ 106 + (new parametrize cases from Step 4).
-0 xfailed. 0 failed. Exit 0.
+Expected: total passed = 178 baseline + (new parametrize cases from Step 4)
+= ~211. 0 xfailed. 0 failed. Exit 0.
 
 If any pre-existing test fails, do NOT skip or xfail it — investigate.
 The most likely culprit is a test that expects a specific LLM-set
@@ -397,7 +406,8 @@ Flip plan 011's status row to `DONE` with a one-line post-exec note
 - **SAP cap tests unchanged** — they pre-set `job_category` in the
   test fixture, so they exercise `_apply_experience_cap` directly and
   aren't affected by the new `_infer_category` call.
-- **Verification**: full suite green, ≥ 106 + new-cases passed.
+- **Verification**: full suite green, 178 baseline + new-cases passed
+  (≈ 211 total).
 
 ## Done criteria
 
@@ -410,8 +420,8 @@ ALL must hold:
       area).
 - [ ] `tests/test_analyzer_filters.py` has 30+ new parametrized cases
       + 3 additional non-parametrized cases, all green.
-- [ ] `venv/Scripts/python.exe -m pytest -q` → ≥ 106 + new-cases passed,
-      0 xfailed, 0 failed, exit 0.
+- [ ] `venv/Scripts/python.exe -m pytest -q` → 178 baseline + new-cases
+      passed (≈ 211 total), 0 xfailed, 0 failed, exit 0.
 - [ ] The three existing SAP-cap tests still pass with no changes.
 - [ ] Regex sanity check from Step 1 verify block emits the expected
       labels in order.

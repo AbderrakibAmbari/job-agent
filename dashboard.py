@@ -330,9 +330,63 @@ def get_score_color(score: int) -> str:
 # PLAN 022 — V2 TWO-PANE LAYOUT
 # ══════════════════════════════════════════════════
 
+def _render_job_row_compact(job, applied_map: dict, is_selected: bool) -> bool:
+    """Render one compact job row in the left pane. Returns True if clicked."""
+    job_id, job_title, company, location = job[0], job[1], job[2], job[3]
+    match_score = job[6]
+    apply_state = applied_map.get(job_id, 0)
+
+    icon = "✅" if apply_state == 1 else ("❌" if apply_state == 2 else "📋")
+
+    # Two lines: header (score + title) and sub (company · location)
+    title = (job_title or "")[:60]
+    label = f"{icon} {match_score}%  ·  {title}"
+    sub = f"{(company or '')[:32]} · {(location or '')[:22]}"
+
+    clicked = st.button(
+        label,
+        key=f"v2_row_{job_id}",
+        use_container_width=True,
+        type="primary" if is_selected else "secondary",
+        help=sub,
+    )
+    return clicked
+
+
 def _render_matches_v2(job_list, applied_map: dict, date_str: str):
-    """V2 two-pane triage view — wired up in later phases."""
-    st.info("V2 layout: coming in next phase.")
+    """V2 two-pane triage view — left = compact list, right = detail (Phase C)."""
+    # Auto-select first unreviewed job on first load
+    if st.session_state["v2_selected_job_id"] is None and job_list:
+        for j in job_list:
+            if applied_map.get(j[0], 0) == 0:
+                st.session_state["v2_selected_job_id"] = j[0]
+                break
+        if st.session_state["v2_selected_job_id"] is None:
+            st.session_state["v2_selected_job_id"] = job_list[0][0]
+
+    left, right = st.columns([_LEFT_RATIO, 2])
+
+    # ── Left pane ──
+    with left:
+        reviewed = sum(1 for j in job_list if applied_map.get(j[0], 0) != 0)
+        st.caption(f"**{reviewed} of {len(job_list)} reviewed**  ·  {date_str}")
+        st.markdown("---")
+
+        with st.container(height=_LEFT_PANE_HEIGHT):
+            for job in job_list:
+                job_id = job[0]
+                is_selected = (st.session_state["v2_selected_job_id"] == job_id)
+                if _render_job_row_compact(job, applied_map, is_selected):
+                    st.session_state["v2_selected_job_id"] = job_id
+                    st.rerun()
+
+    # ── Right pane ──
+    with right:
+        sel_id = st.session_state.get("v2_selected_job_id")
+        if sel_id is None:
+            st.info("Select a job from the list to view details.")
+        else:
+            st.info(f"[Job detail pane — wired in Phase C] selected id={sel_id}")
 
 
 # ══════════════════════════════════════════════════

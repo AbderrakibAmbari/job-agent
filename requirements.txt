@@ -45,7 +45,7 @@ pydantic==2.12.5
 pydantic_core==2.41.5
 pydeck==0.9.1
 pyee==13.0.1
-pytest
+pytest==9.1.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-docx==1.2.0

@@ -62,7 +62,7 @@ def main():
         from nodes.pipeline import run_pipeline
         load_dotenv()
 
-        log("Running pipeline: scrape (Indeed/Stepstone/XING/LinkedIn/Glassdoor) → validate → score → save...")
+        log("Running pipeline: scrape (Stepstone/XING/LinkedIn/Glassdoor/Arbeitsagentur) → validate → score → save...")
         scored = run_pipeline(min_score=50)
 
         if scored:

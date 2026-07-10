@@ -264,6 +264,11 @@ def _default_followup_date(from_date_str: str, days: int = 7) -> str:
     return (d + timedelta(days=days)).strftime("%Y-%m-%d")
 
 
+# Plan 021: public alias for external callers (dashboard). Internal caller
+# save_application keeps the underscored name to avoid a same-module sweep.
+default_followup_date = _default_followup_date
+
+
 def get_due_followups(today_str: str = None) -> list:
     """Return applications with status in ('Sent', 'Waiting') AND
     follow_up_date <= today. Ordered oldest-follow-up first.

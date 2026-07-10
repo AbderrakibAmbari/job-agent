@@ -1,6 +1,9 @@
 # ── Secrets & credentials ──────────────────────────
 .env
 data/linkedin_cookies.json
+data/gmail_credentials.json
+data/gmail_token.json
+data/gmail_review.jsonl
 
 # ── Personal data ───────────────────────────────────
 my_cv.txt

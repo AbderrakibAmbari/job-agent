@@ -11,6 +11,7 @@ from nodes.tracker import (
     get_applied_status, get_applied_statuses, save_application,
     get_not_matched_jobs, get_scrape_dates,
     promote_not_matched_to_matched,
+    get_due_followups, update_followup_date,  # Plan 009
 )
 from nodes.scrape_log_parser import (
     parse_scrape_log, platform_history, broken_platforms, top_terms_aggregated,
@@ -65,6 +66,10 @@ def load_not_matched_jobs(date_filter: str):
 def load_scrape_runs():
     """Read the scrape log fresh at most once a minute."""
     return parse_scrape_log()
+
+@st.cache_data(ttl=300)
+def load_due_followups():
+    return get_due_followups()
 
 st.set_page_config(
     page_title="Job Agent",
@@ -384,6 +389,64 @@ if page == "📊  My Applications":
     st.title("My Applications")
     st.markdown("---")
 
+    # ── Follow-up due (Plan 009) ──────────────────────
+    due = load_due_followups()
+    if due:
+        st.markdown(
+            f'<div style="padding:10px 14px; margin-bottom:12px; '
+            f'border-left:3px solid #d29922; background:#332b00; '
+            f'border-radius:4px; color:#e6e6e6;">'
+            f'🔔 <strong>{len(due)} follow-up{"s" if len(due) > 1 else ""} due</strong> '
+            f'— applications waiting on a reply past their follow-up date.'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        with st.expander(f"Show {len(due)} due follow-up(s)", expanded=False):
+            for r in due:
+                app_id, company, job_title, platform, date_applied, status, _cover, job_url, follow_up = r
+                days_since = (
+                    datetime.now().date() - datetime.strptime(date_applied, "%Y-%m-%d").date()
+                ).days if date_applied else 0
+
+                fu_cols = st.columns([3, 1, 1, 1, 1])
+                with fu_cols[0]:
+                    safe = _safe_url(job_url) if job_url else ""
+                    link_html = (
+                        f' <a href="{safe}" target="_blank" style="color:#58a6ff; '
+                        f'font-size:12px; text-decoration:none;">↗</a>'
+                        if safe else ""
+                    )
+                    st.markdown(
+                        f"**{_esc(company)}** — {_esc(job_title)}  "
+                        f"<span style='color:#8b949e;font-size:12px;'>"
+                        f"({days_since}d ago · {_esc(status)}){link_html}"
+                        f"</span>",
+                        unsafe_allow_html=True,
+                    )
+                with fu_cols[1]:
+                    if st.button("Interview", key=f"fu_int_{app_id}"):
+                        update_status(app_id, "Interview")
+                        st.cache_data.clear()
+                        st.rerun()
+                with fu_cols[2]:
+                    if st.button("Rejected", key=f"fu_rej_{app_id}"):
+                        update_status(app_id, "Rejected")
+                        st.cache_data.clear()
+                        st.rerun()
+                with fu_cols[3]:
+                    if st.button("Snooze +7d", key=f"fu_snz_{app_id}"):
+                        from nodes.tracker import _default_followup_date
+                        today = datetime.now().strftime("%Y-%m-%d")
+                        update_followup_date(app_id, _default_followup_date(today))
+                        st.cache_data.clear()
+                        st.rerun()
+                with fu_cols[4]:
+                    st.markdown(
+                        f"<span style='color:#8b949e;font-size:11px;'>due {_esc(follow_up)}</span>",
+                        unsafe_allow_html=True,
+                    )
+        st.markdown("---")
+
     col1, col2, col3, col4, col5 = st.columns(5)
     df_apps = pd.DataFrame(apps, columns=[
         "id", "company", "job_title", "platform",
@@ -454,6 +517,25 @@ if page == "📊  My Applications":
                         st.cache_data.clear()
                         st.warning("Deleted.")
                         st.rerun()
+
+                    # ── Follow-up date (Plan 009) ──
+                    fu_col1, fu_col2 = st.columns([3, 1])
+                    with fu_col1:
+                        new_fu = st.date_input(
+                            "Follow-up date",
+                            value=(
+                                datetime.strptime(row["follow_up_date"], "%Y-%m-%d").date()
+                                if row["follow_up_date"] else datetime.now().date()
+                            ),
+                            key=f"fu_date_{row['id']}",
+                        )
+                    with fu_col2:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.button("Save follow-up", key=f"fu_save_{row['id']}"):
+                            update_followup_date(row["id"], new_fu.strftime("%Y-%m-%d"))
+                            st.cache_data.clear()
+                            st.success(f"Follow-up set to {new_fu}")
+                            st.rerun()
 
                 if row["cover_letter"]:
                     st.markdown("---")

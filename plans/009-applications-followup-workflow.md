@@ -4,9 +4,26 @@
 > verification command. Stop on any STOP condition. Update the status
 > row in `plans/README.md` when done.
 >
-> **Drift check (run first)**: `git diff --stat 5bed640..HEAD -- dashboard.py nodes/tracker.py`
+> **Drift check (run first)**: `git diff --stat 35bacd0..HEAD -- dashboard.py nodes/tracker.py`
 > If either file changed since this plan was written, compare the
 > "Current state" excerpts against live code before proceeding.
+>
+> **Re-affirmation note (2026-07-10, `35bacd0`)**: this plan was
+> originally written at `5bed640` on 2026-07-02. Line numbers have
+> drifted since then (plans 014/016/017 landed), but STRUCTURE is
+> intact. Corrected line references:
+> - `save_application` is now at `nodes/tracker.py:230-252` (was 161-182).
+>   Plan 017 added `_normalize_url(job_url) → norm_url` at line 232 and
+>   changed the INSERT to store `norm_url` (line 249). **PRESERVE
+>   these when applying the Step 1 edit** — the follow-up-date change
+>   is orthogonal to the URL-normalization work.
+> - `update_status` / `delete_application` are at `nodes/tracker.py:561`
+>   and `:570` (were 487-500).
+> - "My Applications" page in `dashboard.py` starts at line 382 (was 367).
+>   Metrics `st.columns(5)` row is at `dashboard.py:387` (was 374).
+>   Status selectbox is at line 441 (was 428).
+> - Baseline test count is 212 → target after this plan is 225 passed
+>   (212 + 13 new).
 
 ## Status
 
@@ -16,7 +33,7 @@
 - **Depends on**: none (soft-dep on `plans/002` for the pytest infra used
   by the new helper tests)
 - **Category**: direction (feature — application lifecycle)
-- **Planned at**: commit `5bed640`, 2026-07-02
+- **Planned at**: commit `5bed640`, 2026-07-02 (re-affirmed at `35bacd0`, 2026-07-10)
 
 ## Why this matters
 
@@ -214,17 +231,20 @@ def update_followup_date(app_id: int, new_date: str) -> None:
         conn.commit()
 ```
 
-Then edit `save_application` at lines 161-182 to use the new default:
+Then edit `save_application` at lines 230-252 to use the new default.
+**IMPORTANT**: preserve plan 017's `_normalize_url(job_url) → norm_url`
+call and use `norm_url` in both the SELECT and the INSERT:
 
 ```python
 def save_application(company: str, job_title: str, platform: str,
                      cover_letter: str, job_url: str) -> None:
+    norm_url = _normalize_url(job_url)  # plan 017 — preserve
     with _conn() as conn:
         c = conn.cursor()
         c.execute("""
             SELECT id FROM applications
             WHERE job_url = ? OR (company = ? AND job_title = ?)
-        """, (job_url, company, job_title))
+        """, (norm_url, company, job_title))
         if c.fetchone():
             return
         today = datetime.now().strftime("%Y-%m-%d")
@@ -235,7 +255,7 @@ def save_application(company: str, job_title: str, platform: str,
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
             company, job_title, platform,
-            today, cover_letter, job_url,
+            today, cover_letter, norm_url,
             _default_followup_date(today),
         ))
         conn.commit()
@@ -540,8 +560,8 @@ Flip plan 009's status row to `DONE` with the commit SHA and pass counts.
   - `save_application` default is +7 days — 1 case.
 - **Manual smoke** — Step 4 recipe. Non-automated but critical because
   Streamlit UI can't be unit-tested easily.
-- **Verification**: `venv/Scripts/python.exe -m pytest -q` → ≥ 106 + 13
-  passed, 0 xfailed, 0 failed.
+- **Verification**: `venv/Scripts/python.exe -m pytest -q` → 212 + 13
+  = 225 passed, 0 xfailed, 0 failed.
 
 ## Done criteria
 
@@ -555,7 +575,7 @@ ALL must hold:
       `update_followup_date`, has the "Follow-up due" section at the top
       of the Applications page, and the follow-up date_input inside
       each expander.
-- [ ] `venv/Scripts/python.exe -m pytest -q` → ≥ 119 passed / 0 xfailed
+- [ ] `venv/Scripts/python.exe -m pytest -q` → 225 passed / 0 xfailed
       / 0 failed / exit 0.
 - [ ] Manual smoke (Step 4) all 6 checks pass.
 - [ ] `plans/README.md` row for plan 009 flipped to `DONE`.

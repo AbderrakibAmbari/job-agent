@@ -69,6 +69,45 @@ _TRAINEE_PROGRAM = re.compile(
 _WERKSTUDENT_TITLE = re.compile(r"\bwerkstudent\w*\b", re.IGNORECASE)
 
 
+# ── Category taxonomy ─────────────────────────────────────────────
+# Ordered dict — first match wins. Patterns check title first, then
+# description[:400] as a fallback. See _infer_category().
+#
+# Order matters: SAP is checked before Backend so an "SAP ABAP
+# Developer" doesn't get tagged Backend just because ABAP is a
+# programming language. DevOps/Cloud is checked before Backend so
+# "Kubernetes Engineer" isn't tagged Backend on the strength of
+# "backend infrastructure" mentions.
+_CATEGORY_PATTERNS = [
+    ("SAP/ERP",         re.compile(r"\b(sap|abap|s/4hana|s4hana|hana|salesforce|erp|dynamics\s*365|netsuite|oracle\s*ebs)\b", re.IGNORECASE)),
+    ("DevOps/Cloud",    re.compile(r"\b(devops|sre|site\s+reliability|kubernetes|k8s|terraform|ansible|aws|azure(?!\s*devops)|gcp|google\s+cloud|cloud\s+engineer|platform\s+engineer|infrastructure\s+engineer|linux\s+admin|systemadministrator|sysadmin|it-administrator)\b", re.IGNORECASE)),
+    ("DataEngineering", re.compile(r"\b(data\s+engineer|dateningenieur|etl|airflow|dbt|snowflake|databricks|spark|kafka|data\s+pipeline|bigquery|redshift)\b", re.IGNORECASE)),
+    ("AI/ML",           re.compile(r"\b(ai|artificial\s+intelligence|machine\s+learning|ml\s+engineer|data\s+scientist|nlp|computer\s+vision|deep\s+learning|llm|generative\s+ai|tensorflow|pytorch|hugging\s*face|langchain|prompt\s+engineer)\b", re.IGNORECASE)),
+    ("QA/Testing",      re.compile(r"\b(qa\s+engineer|quality\s+assurance|test\s+engineer|test\s+automation|sdet|selenium|cypress|playwright\s+tester|manual\s+tester|software\s*tester|softwaretester)\b", re.IGNORECASE)),
+    ("Mobile",          re.compile(r"\b(android|ios|swift|kotlin\s+android|flutter|react\s+native|mobile\s+(developer|engineer)|iphone|jetpack\s+compose)\b", re.IGNORECASE)),
+    ("ITConsulting",    re.compile(r"\b(it[-\s]*consultant|it[-\s]*berater|technology\s+consultant|solution\s+architect|solutions\s+architect|integration\s+consultant)\b", re.IGNORECASE)),
+    ("FullStack",       re.compile(r"\b(full[-\s]?stack|fullstack|full[-\s]?stack\s+(developer|engineer))\b", re.IGNORECASE)),
+    # Frontend before Backend so a "React/Node full-stack" not matched by
+    # the FullStack rule above (spelling variants) gets Frontend if only
+    # frontend markers dominate.
+    ("Frontend",        re.compile(r"\b(frontend|front[-\s]end|react(?!\s*native)|angular|vue(?:\.?js|\s*3)?|svelte|next\.?js|nuxt|typescript\s+developer|ui\s+engineer|ui\s+developer|webentwickler\s+frontend)\b", re.IGNORECASE)),
+    ("Backend",         re.compile(r"\b(backend|back[-\s]end|java\s+developer|kotlin\s+developer|spring\s+boot|node\.?js|nodejs|python\s+developer|fastapi|django|flask|go(?:lang)?\s+developer|c\#\s+developer|\.net\s+developer|rest\s+api|graphql|api\s+entwickler|softwareentwickler\s+backend)\b", re.IGNORECASE)),
+]
+
+
+def _infer_category(title: str, description: str = "") -> str:
+    """Deterministic category tag from title + first 400 chars of description.
+
+    First matching pattern wins. Returns 'Other' if nothing matches.
+    Pure function — safe to unit-test independently of the LLM path.
+    """
+    haystack = f"{title or ''} {(description or '')[:400]}"
+    for label, pattern in _CATEGORY_PATTERNS:
+        if pattern.search(haystack):
+            return label
+    return "Other"
+
+
 def _apply_experience_cap(job: dict) -> dict:
     """Hard-cap scores that bypass the LLM's experience rules."""
     title = job.get("title", "")
@@ -234,7 +273,12 @@ def score_job(cv: str, job: dict) -> dict:
         job["work_mode"]      = result.get("work_mode", "Unknown")
         job["language"]       = result.get("suggested_language", "German")
         job["is_quick_apply"] = result.get("is_quick_apply", False) or job.get("quick_apply", False)
-        job["job_category"]   = result.get("job_category", "Other")
+        # LLM's own guess is unreliable (47% "Other" in prod). Overwrite with
+        # deterministic regex classifier. Plan 011.
+        job["job_category"]   = _infer_category(
+            job.get("title", ""),
+            job.get("description", ""),
+        )
 
         job = _apply_experience_cap(job)
 
@@ -260,7 +304,10 @@ def score_job(cv: str, job: dict) -> dict:
         job["contract_type"]  = "Unknown"
         job["work_mode"]      = "Unknown"
         job["is_quick_apply"] = job.get("quick_apply", False)
-        job["job_category"]   = "Other"
+        job["job_category"]   = _infer_category(
+            job.get("title", ""),
+            job.get("description", ""),
+        )
         job["_score_failed"]  = True
 
     return job
@@ -350,7 +397,10 @@ def score_and_filter_jobs(cv: str, jobs: list, min_score: int = 70) -> tuple:
             job["contract_type"]  = job.get("contract_type", "Unknown")
             job["work_mode"]      = job.get("work_mode", "Unknown")
             job["is_quick_apply"] = job.get("quick_apply", False)
-            job["job_category"]   = "Other"
+            job["job_category"]   = _infer_category(
+                job.get("title", ""),
+                job.get("description", ""),
+            )
             pre_rejected.append(job)
         else:
             to_score.append(job)

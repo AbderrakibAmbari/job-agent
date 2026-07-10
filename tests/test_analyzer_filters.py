@@ -152,3 +152,62 @@ def test_apply_cap_sap_title_without_sap_category_not_capped_by_sap_rule():
     }
     # Vollzeit exempts the 60 cap; category != "SAP/ERP" skips the 55 cap.
     assert _apply_experience_cap(job)["score"] == 90
+
+
+# ---------- _infer_category (Plan 011) ----------
+
+from nodes.analyzer import _infer_category
+
+
+@pytest.mark.parametrize("title,desc,expected", [
+    ("Junior Backend Java Developer (m/w/d)", "", "Backend"),
+    ("Softwareentwickler Backend", "Java Spring Boot Team", "Backend"),
+    ("React Frontend Engineer", "", "Frontend"),
+    ("Angular Developer", "", "Frontend"),
+    ("Vue.js Developer", "", "Frontend"),
+    ("Full Stack Web Developer", "", "FullStack"),
+    ("Fullstack Engineer", "", "FullStack"),
+    ("Kubernetes DevOps Engineer", "", "DevOps/Cloud"),
+    ("SRE Engineer", "", "DevOps/Cloud"),
+    ("Cloud Platform Engineer AWS", "", "DevOps/Cloud"),
+    ("Linux Systemadministrator", "", "DevOps/Cloud"),
+    ("IT-Administrator", "", "DevOps/Cloud"),
+    ("Data Engineer", "", "DataEngineering"),
+    ("ETL Developer", "Airflow, dbt", "DataEngineering"),
+    ("Machine Learning Engineer", "", "AI/ML"),
+    ("Data Scientist", "NLP models", "AI/ML"),
+    ("Prompt Engineer", "", "AI/ML"),
+    ("SAP ABAP Consultant", "", "SAP/ERP"),
+    ("Salesforce Developer", "", "SAP/ERP"),
+    ("Software Tester", "", "QA/Testing"),
+    ("Test Automation Engineer", "Cypress", "QA/Testing"),
+    ("Android Developer", "", "Mobile"),
+    ("iOS Engineer Swift", "", "Mobile"),
+    ("Flutter Mobile Developer", "", "Mobile"),
+    ("IT Consultant", "SAP integration", "SAP/ERP"),  # SAP wins over Consulting
+    ("IT-Berater", "", "ITConsulting"),
+    ("Solution Architect", "", "ITConsulting"),
+    ("Trainee Programme Software", "General rotation across teams", "Other"),
+    ("Werkstudent Marketing", "", "Other"),
+    ("Praktikum Verwaltung", "", "Other"),
+    ("Software Engineer", "", "Other"),  # too generic without further signal
+])
+def test_infer_category(title, desc, expected):
+    assert _infer_category(title, desc) == expected
+
+
+def test_infer_category_empty_input_returns_other():
+    assert _infer_category("", "") == "Other"
+    assert _infer_category(None, None) == "Other"
+
+
+def test_infer_category_description_fallback_when_title_generic():
+    # Generic title, but description mentions Spring Boot — should classify Backend
+    assert _infer_category("Software Engineer", "You'll write Java code with Spring Boot") == "Backend"
+
+
+def test_infer_category_only_reads_first_400_chars_of_description():
+    # Backend keyword after char 500 should NOT match
+    filler = "a" * 500
+    desc = filler + " Spring Boot"
+    assert _infer_category("Software Engineer", desc) == "Other"

@@ -5,9 +5,16 @@
 > not improvise. Update the status row for this plan in `plans/README.md`
 > when done.
 >
-> **Drift check (run first)**: `git diff --stat 5bed640..HEAD -- run_daily.py nodes/pipeline.py nodes/tracker.py`
+> **Drift check (run first)**: `git diff --stat b02e7e8..HEAD -- run_daily.py nodes/pipeline.py nodes/tracker.py`
 > If any of these changed since this plan was written, compare the
 > "Current state" excerpts against live code before proceeding.
+>
+> **Re-affirmation note (2026-07-10, `b02e7e8`)**: this plan was
+> originally written at `5bed640` on 2026-07-02. Re-affirmed at
+> `b02e7e8` after plan 019 retired Indeed. `run_daily.py:25` still
+> mentions "Indeed" in its log string — that's stale but OUT OF SCOPE
+> for this plan (drop it in a separate one-line cleanup, or leave it
+> for a future plan). Do NOT touch it here.
 
 ## Status
 
@@ -16,7 +23,7 @@
 - **Risk**: LOW
 - **Depends on**: none
 - **Category**: direction (feature)
-- **Planned at**: commit `5bed640`, 2026-07-02
+- **Planned at**: commit `5bed640`, 2026-07-02 (re-affirmed at `b02e7e8`, 2026-07-10)
 
 ## Why this matters
 
@@ -94,7 +101,7 @@ actual toast call in tests via monkeypatch.
 |---------|---------|---|
 | Activate venv | `source venv/Scripts/activate` | prompt `(venv)` |
 | Install winotify | `pip install winotify==1.1.0` | installs cleanly |
-| Full test suite | `venv/Scripts/python.exe -m pytest -q` | 106+ passed / 0 failed |
+| Full test suite | `venv/Scripts/python.exe -m pytest -q` | 169 passed → 178 passed after this plan |
 | Manual smoke — no matches | see Step 4 | no toast, no crash |
 | Manual smoke — with mock matches | see Step 4 | one toast appears |
 
@@ -367,8 +374,8 @@ Flip plan 010's status row to `DONE` with a one-line post-exec note
   the exported constant.
 - **Pure-function tests only.** The `winotify` module is monkeypatched
   in the one test that exercises the toast call path.
-- **Verification**: `venv/Scripts/python.exe -m pytest -q` → total ≥ 106
-  passed + 9 new = 115 passed, 0 xfailed, 0 failed.
+- **Verification**: `venv/Scripts/python.exe -m pytest -q` → total 169
+  passed + 9 new = 178 passed, 0 xfailed, 0 failed.
 - **Manual smoke**: both Step 4 recipes.
 
 ## Done criteria
@@ -380,7 +387,7 @@ ALL must hold:
       `_format_notification_body`, `_notify_strong_matches`,
       `STRONG_MATCH_THRESHOLD`, and the `main()` call site updated.
 - [ ] `tests/test_run_daily_notify.py` exists with 9 passing tests.
-- [ ] `venv/Scripts/python.exe -m pytest -q` → ≥ 115 passed / 0 failed
+- [ ] `venv/Scripts/python.exe -m pytest -q` → 178 passed / 0 failed
       / 0 xfailed / exit 0.
 - [ ] Smoke test 2 (Step 4) raises exactly one visible toast on the
       operator's Windows 11 machine.

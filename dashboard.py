@@ -3,7 +3,6 @@ import sqlite3
 import pandas as pd
 import json
 from datetime import datetime
-from nodes.feedback_log import append_feedback
 from nodes.tracker import (
     init_db, get_all_applications, get_matched_jobs,
     update_status, delete_application,
@@ -12,6 +11,7 @@ from nodes.tracker import (
     get_not_matched_jobs, get_scrape_dates,
     promote_not_matched_to_matched,
     get_due_followups, update_followup_date,  # Plan 009
+    update_matched_job_rejection, get_rejection_row,  # Plan 013
 )
 from nodes.scrape_log_parser import (
     parse_scrape_log, platform_history, broken_platforms, top_terms_aggregated,
@@ -703,33 +703,44 @@ elif page == "🔍  Today's Matches":
                                 st.rerun()
 
                         with btn_col2:
-                            if st.button(
+                            # Plan 013: reason capture on Not Applying
+                            with st.popover(
                                 "Not Applying",
-                                key=f"notapplied_{job_id}",
-                                type="primary" if apply_state != 2 else "secondary"
+                                use_container_width=True,
                             ):
-                                update_matched_job_applied(job_id, 2)
-                                st.cache_data.clear()
-                                st.rerun()
+                                st.markdown("**Why skip this job?**")
+                                reason = st.selectbox(
+                                    "Reason",
+                                    [
+                                        "not-tech",
+                                        "wrong-tech",
+                                        "wrong-seniority",
+                                        "wrong-location",
+                                        "wrong-contract",
+                                        "employer-mismatch",
+                                        "already-applied-elsewhere",
+                                        "link-broken",
+                                        "other",
+                                    ],
+                                    key=f"rej_reason_{job_id}",
+                                )
+                                note = st.text_input(
+                                    "Note (optional)",
+                                    key=f"rej_note_{job_id}",
+                                    placeholder="e.g. Angular-only shop, no Vue",
+                                )
+                                if st.button("Save reason", key=f"rej_save_{job_id}"):
+                                    update_matched_job_rejection(job_id, reason, note)
+                                    st.cache_data.clear()
+                                    st.rerun()
 
-                    st.markdown("---")
-                    with st.expander("Log feedback for this job"):
-                        fb_c1, fb_c2 = st.columns([1, 2])
-                        with fb_c1:
-                            fb_result = st.selectbox(
-                                "Outcome",
-                                ["applied", "not_interested", "link_broken",
-                                 "needs_review", "saved_for_later"],
-                                key=f"fb_result_{job_id}"
-                            )
-                        with fb_c2:
-                            fb_action = st.text_input(
-                                "Action needed (optional)",
-                                key=f"fb_action_{job_id}"
-                            )
-                        if st.button("Log feedback", key=f"fb_btn_{job_id}"):
-                            append_feedback(company, job_title, platform, fb_result, fb_action)
-                            st.success("Logged!")
+                            if apply_state == 2:
+                                existing = get_rejection_row(job_id) or ("", "")
+                                if existing[0]:
+                                    st.caption(f"↳ {_esc(existing[0])}"
+                                               + (f" — {_esc(existing[1])}" if existing[1] else ""))
+                                else:
+                                    st.caption("↳ (legacy — no reason captured)")
 
         render_jobs(matched)
 

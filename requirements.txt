@@ -69,5 +69,6 @@ tzdata==2025.3
 urllib3==2.6.3
 uuid_utils==0.14.1
 watchdog==6.0.0
+winotify==1.1.0
 xxhash==3.6.0
 zstandard==0.25.0

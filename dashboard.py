@@ -12,6 +12,7 @@ from nodes.tracker import (
     promote_not_matched_to_matched,
     get_due_followups, update_followup_date,  # Plan 009
     update_matched_job_rejection, get_rejection_row,  # Plan 013
+    default_followup_date,  # Plan 021
 )
 from nodes.scrape_log_parser import (
     parse_scrape_log, platform_history, broken_platforms, top_terms_aggregated,
@@ -435,9 +436,8 @@ if page == "📊  My Applications":
                         st.rerun()
                 with fu_cols[3]:
                     if st.button("Snooze +7d", key=f"fu_snz_{app_id}"):
-                        from nodes.tracker import _default_followup_date
                         today = datetime.now().strftime("%Y-%m-%d")
-                        update_followup_date(app_id, _default_followup_date(today))
+                        update_followup_date(app_id, default_followup_date(today))
                         st.cache_data.clear()
                         st.rerun()
                 with fu_cols[4]:

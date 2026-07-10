@@ -337,52 +337,6 @@ REGIONS = [
 
 # ── Platform Configurations ────────────────────────
 PLATFORM_CONFIGS = {
-    "Indeed": {
-        "build_url": lambda term, region, n, days: (
-            f"https://de.indeed.com/jobs"
-            f"?q={term.replace(' ', '+')}"
-            f"&l={region.replace(' ', '+')}"
-            f"&limit={n}"
-            f"&fromage={days}"
-        ),
-        "cookie_selector": "button#onetrust-accept-btn-handler",
-        "card_selector": "div.job_seen_beacon",
-        "selectors": {
-            "title":   [
-                "[data-testid='jobTitle'] span",
-                "[data-testid='jobTitle']",
-                "h2.jobTitle span[id]",
-                "h2 a span",
-                "h2 span",
-            ],
-            "company": [
-                "[data-testid='company-name']",
-                "span[data-testid='company-name']",
-                "span.companyName",
-                "span[class*='company']",
-            ],
-            "location": [
-                "[data-testid='text-location']",
-                "div.companyLocation",
-                "div[class*='location']",
-            ],
-            "link": [
-                "h2.jobTitle a",
-                "a[data-jk]",
-                "a[href*='/rc/clk']",
-                "a[href*='indeed']",
-            ],
-            "snippet": [
-                "[data-testid='snippet']",
-                "div.job-snippet",
-                "div[class*='snippet']",
-                "ul.job-snippet",
-            ],
-        },
-        "link_base": "https://de.indeed.com",
-        "login_indicators": [],
-        "quick_apply_selector": "[data-testid='indeedApply']",
-    },
     "Stepstone": {
         "build_url": lambda term, region, n, days: (
             f"https://www.stepstone.de/jobs"

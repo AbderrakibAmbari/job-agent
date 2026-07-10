@@ -50,3 +50,39 @@ def test_safe_url_rejects_bare_text():
 def test_safe_url_rejects_scheme_relative():
     # No scheme → rejected even if it looks host-like.
     assert _safe_url("//cdn.example.com/x") == ""
+
+
+# ---------- _auto_advance (Plan 022) ----------
+#
+# `_auto_advance` mutates `st.session_state` and needs a Streamlit runtime.
+# The pure implementation is mirrored here for testing; keep the two in sync.
+
+def _auto_advance_pure(current_id, all_ids, unreviewed_ids):
+    """Return the next unreviewed id after current, wrapping around, or None."""
+    try:
+        idx = all_ids.index(current_id)
+    except ValueError:
+        return None
+    for i in all_ids[idx + 1:]:
+        if i in unreviewed_ids:
+            return i
+    for i in all_ids[:idx]:
+        if i in unreviewed_ids:
+            return i
+    return None
+
+
+def test_auto_advance_finds_next():
+    assert _auto_advance_pure(2, [1, 2, 3, 4], {3, 4}) == 3
+
+
+def test_auto_advance_wraps_around():
+    assert _auto_advance_pure(4, [1, 2, 3, 4], {1, 2}) == 1
+
+
+def test_auto_advance_all_reviewed():
+    assert _auto_advance_pure(2, [1, 2, 3], set()) is None
+
+
+def test_auto_advance_unknown_id():
+    assert _auto_advance_pure(99, [1, 2, 3], {1}) is None

@@ -429,6 +429,28 @@ def _render_job_detail_right(job: tuple, applied_map: dict, all_jobs: list):
     meta_cols[2].markdown(f"**Contract**  \n{_esc(contract_type)}", unsafe_allow_html=True)
     meta_cols[3].markdown(f"**Category**  \n{_esc(job_category)}", unsafe_allow_html=True)
 
+    # ── Inline company edit (preserved from v1) ──
+    new_company = st.text_input(
+        "Company name (edit if wrong)",
+        value=company if company != "Unknown" else "",
+        placeholder="Type company name...",
+        key=f"v2_company_{job_id}",
+    )
+    if new_company and new_company != company:
+        if st.button("Save company", key=f"v2_save_company_{job_id}"):
+            update_matched_job_company(job_id, new_company)
+            st.cache_data.clear()
+            st.success(f"Updated to: {new_company}")
+            st.rerun()
+
+    # ── Link status indicator ──
+    if link_status == "active":
+        st.success("Job link is active")
+    elif link_status == "expired":
+        st.error("Job link expired")
+    else:
+        st.warning("Manual review needed")
+
     st.markdown("---")
 
     # ── Reasons + gaps side by side ──

@@ -865,13 +865,29 @@ Stop and report back (do not improvise) if:
 
 ---
 
-## Open questions (operator must answer before Phase C or keyboard shortcuts)
+## Open questions — RESOLVED 2026-07-10 by operator
 
-1. **Keyboard shortcuts (D7)**: Do you want `a` → Applied, `n` → Not Applying, `→` → next job? This requires adding `streamlit-shortcuts` to `requirements.txt`. Answer YES or NO before the executor reaches Phase E.
+All three answered **YES** before execution began. The plan text above may
+still reference them as "open"; the resolutions here take precedence.
 
-2. **Iframe fallback UX**: If a job board blocks the iframe, the operator sees a blank frame + an "Open in tab" link. Is that acceptable, or would you prefer to hide the iframe entirely and always show just the link? Answer before Phase C.
+1. **Keyboard shortcuts (D7)** — **YES**. Add `streamlit-shortcuts` to
+   `requirements.txt`. Bind `a` → Applied, `n` → open Not-Applying popover,
+   `→` (right arrow) → advance to next job. Implement in Phase E.
 
-3. **Left pane scroll**: Streamlit does not natively make a single column scrollable while the other is fixed. With 100+ jobs, the left pane will be very long and the right pane will scroll with it. If this is unacceptable, the executor will need to use `st.container(height=...)` (available in Streamlit 1.32+, NOT in 1.55.0 — confirm version). **STOP**: if the operator wants a fixed-height scrollable left pane, report back — this is not achievable in Streamlit 1.55.0 without a custom component.
+2. **Iframe fallback UX** — **YES, blank+link is acceptable**. When a
+   board blocks the iframe, the operator sees the blank/blocked frame
+   plus the "Open on X ↗" links rendered directly above it. No
+   auto-hide, no detection heroics. Implement as planned in Phase C.
+
+3. **Fixed-height left pane** — **YES**, and it IS achievable in
+   Streamlit 1.55.0. The advisor verified before execution:
+   `st.container(height=..., ...)` exists in 1.55.0 (the `height`
+   parameter has been part of `st.container` since 1.32.0, Feb 2024;
+   Sonnet's original claim that 1.55.0 lacked it was wrong). The
+   STOP condition in D9 is void. Wrap the left-pane loop in
+   `st.container(height=750)` so the right pane stays anchored while
+   the left pane scrolls independently. Height 750px chosen to fit
+   one full 1080p screen minus header/nav chrome — tune if needed.
 
 ---
 

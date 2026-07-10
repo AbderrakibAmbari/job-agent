@@ -49,6 +49,12 @@ init_db()
 DB_PATH  = "data/applications.db"
 RUN_DATE = datetime.now().strftime("%Y-%m-%d")
 
+# Plan 022: V2 two-pane layout
+_LEFT_RATIO = 1.2   # left-pane column width ratio for two-pane layout
+_LEFT_PANE_HEIGHT = 750  # fixed height for scrollable left pane (px)
+if "v2_selected_job_id" not in st.session_state:
+    st.session_state["v2_selected_job_id"] = None
+
 # Cached DB reads — cleared explicitly before every st.rerun() that follows a write.
 # TTL=300 is a safety net only; mutations always clear the cache first.
 @st.cache_data(ttl=300)
@@ -319,6 +325,16 @@ def get_score_color(score: int) -> str:
     if score >= 70: return "#f0883e"
     return "#f85149"
 
+
+# ══════════════════════════════════════════════════
+# PLAN 022 — V2 TWO-PANE LAYOUT
+# ══════════════════════════════════════════════════
+
+def _render_matches_v2(job_list, applied_map: dict, date_str: str):
+    """V2 two-pane triage view — wired up in later phases."""
+    st.info("V2 layout: coming in next phase.")
+
+
 # ══════════════════════════════════════════════════
 # SIDEBAR
 # ══════════════════════════════════════════════════
@@ -349,6 +365,11 @@ with st.sidebar:
         ],
         label_visibility="collapsed"
     )
+
+    st.markdown('<hr class="sidebar-divider">', unsafe_allow_html=True)
+
+    # Plan 022: V2 layout toggle — removed after operator sign-off
+    v2_layout = st.checkbox("V2 layout (two-pane)", value=True, key="v2_layout")
 
     st.markdown('<hr class="sidebar-divider">', unsafe_allow_html=True)
 
@@ -742,7 +763,10 @@ elif page == "🔍  Today's Matches":
                                 else:
                                     st.caption("↳ (legacy — no reason captured)")
 
-        render_jobs(matched)
+        if st.session_state.get("v2_layout", True):
+            _render_matches_v2(matched, applied_map, selected_date_str)
+        else:
+            render_jobs(matched)
 
 # ══════════════════════════════════════════════════
 # PAGE 3 — NOT MATCHED

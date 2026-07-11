@@ -47,31 +47,76 @@ def _safe_url(value) -> str:
 
 
 # ── My Applications: pure helpers (Plan 023) ───────
-# Dark-mode palette — dark tinted background + saturated fg text.
-# Matches the existing region-badge convention (badge-west/north/east/south).
+# Light-mode primary palette (soft tinted bg + saturated dark fg).
+# Streamlit renders main content in light mode by default; the dark
+# equivalents live in _MYAPPS_CSS as a prefers-color-scheme override.
 _MYAPPS_STATUS_COLORS: dict[str, tuple[str, str]] = {
-    "Pending Review": ("#2d2d2d", "#c9d1d9"),
-    "Sent":           ("#1a3a5c", "#58a6ff"),
-    "Waiting":        ("#3a2e14", "#d29922"),
-    "Interview":      ("#2a1a4a", "#a78bfa"),
-    "Offer":          ("#1a3a2c", "#3fb950"),
-    "Rejected":       ("#3a1a1a", "#f85149"),
+    "Pending Review": ("#f1f5f9", "#334155"),
+    "Sent":           ("#dbeafe", "#1e40af"),
+    "Waiting":        ("#fef3c7", "#92400e"),
+    "Interview":      ("#ede9fe", "#5b21b6"),
+    "Offer":          ("#d1fae5", "#065f46"),
+    "Rejected":       ("#fee2e2", "#991b1b"),
 }
 _MYAPPS_STATUS_ORDER = ["Pending Review", "Sent", "Waiting", "Interview", "Offer", "Rejected"]
 _MYAPPS_SORT_OPTIONS = ["Recently applied", "Oldest first", "Follow-up soonest", "Company A→Z"]
+_MYAPPS_STATUS_SLUG = {
+    "Pending Review": "pending",
+    "Sent": "sent",
+    "Waiting": "waiting",
+    "Interview": "interview",
+    "Offer": "offer",
+    "Rejected": "rejected",
+}
 
 
 def _status_badge_html(status: str) -> str:
     """Render a status badge as an inline HTML span with the status palette.
 
     Falls back to the Pending Review palette for unknown statuses.
+    The class hook lets _MYAPPS_CSS restyle the badge in dark mode.
     """
     bg, fg = _MYAPPS_STATUS_COLORS.get(status, _MYAPPS_STATUS_COLORS["Pending Review"])
+    slug = _MYAPPS_STATUS_SLUG.get(status, "pending")
     return (
-        f'<span style="background:{bg}; color:{fg}; padding:2px 10px; '
+        f'<span class="myapps-badge myapps-badge-{slug}" '
+        f'style="background:{bg}; color:{fg}; padding:2px 10px; '
         f'border-radius:12px; font-size:12px; font-weight:600; '
         f'white-space:nowrap;">{_esc(status)}</span>'
     )
+
+
+# CSS block injected once by _render_myapps_page. Uses !important so
+# @media dark-mode rules override the inline style= colors above.
+_MYAPPS_CSS = """
+<style>
+.myapps-title { color:#0f172a; font-weight:600; }
+.myapps-company { color:#334155; font-weight:600; }
+.myapps-meta { color:#64748b; font-size:12px; }
+.myapps-fu-meta { color:#b45309; font-size:12px; font-weight:600; }
+.myapps-fu-banner {
+  padding:12px 16px; margin:8px 0 6px 0;
+  border-left:3px solid #d97706; background:#fef3c7;
+  border-radius:6px; color:#78350f; font-weight:600;
+}
+@media (prefers-color-scheme: dark) {
+  .myapps-title { color:#e6edf3 !important; }
+  .myapps-company { color:#c9d1d9 !important; }
+  .myapps-meta { color:#8b949e !important; }
+  .myapps-fu-meta { color:#d29922 !important; }
+  .myapps-fu-banner {
+    background:#3a2e14 !important; border-left-color:#d29922 !important;
+    color:#f0c674 !important;
+  }
+  .myapps-badge-pending  { background:#2d2d2d !important; color:#c9d1d9 !important; }
+  .myapps-badge-sent     { background:#1a3a5c !important; color:#58a6ff !important; }
+  .myapps-badge-waiting  { background:#3a2e14 !important; color:#d29922 !important; }
+  .myapps-badge-interview{ background:#2a1a4a !important; color:#a78bfa !important; }
+  .myapps-badge-offer    { background:#1a3a2c !important; color:#3fb950 !important; }
+  .myapps-badge-rejected { background:#3a1a1a !important; color:#f85149 !important; }
+}
+</style>
+"""
 
 
 def _apply_filters(apps: list, filters: dict) -> list:
@@ -886,9 +931,7 @@ def _render_followup_section(due_apps: list) -> None:
     header_col, toggle_col = st.columns([5, 1])
     with header_col:
         st.markdown(
-            f'<div style="padding:12px 16px; margin:8px 0 6px 0; '
-            f'border-left:3px solid #d29922; background:#3a2e14; '
-            f'border-radius:6px; color:#f0c674; font-weight:600;">'
+            f'<div class="myapps-fu-banner">'
             f'🔔 {len(due_apps)} follow-up{"s" if len(due_apps) > 1 else ""} due'
             f'</div>',
             unsafe_allow_html=True,
@@ -917,12 +960,13 @@ def _render_followup_card(app: dict) -> None:
         head, badge = st.columns([4, 1])
         with head:
             st.markdown(
-                f"<div style='font-size:12px; color:#d29922; margin-bottom:4px;'>"
+                f"<div class='myapps-fu-meta' style='margin-bottom:4px;'>"
                 f"⏰ {days_ago}d ago · applied {_esc(date_applied)}"
                 f"</div>"
-                f"<div style='font-size:16px; font-weight:600; color:#e6edf3;'>"
+                f"<div class='myapps-title' style='font-size:16px;'>"
                 f"{_esc(app.get('job_title') or '')}"
-                f" <span style='color:#8b949e; font-weight:400;'>@ {_esc(app.get('company') or '')}</span>"
+                f" <span class='myapps-meta' style='font-size:14px; font-weight:400;'>"
+                f"@ {_esc(app.get('company') or '')}</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -963,12 +1007,12 @@ def _render_app_card(app: dict) -> None:
             st.markdown(
                 f"<div style='margin-bottom:6px;'>"
                 f"{_status_badge_html(status)}"
-                f" <span style='margin-left:8px; font-size:14px; color:#c9d1d9; font-weight:600;'>"
+                f" <span class='myapps-company' style='margin-left:8px; font-size:14px;'>"
                 f"{_esc(app.get('company') or '')}</span>"
-                f" <span style='color:#6e7681; font-size:12px; margin-left:8px;'>"
+                f" <span class='myapps-meta' style='margin-left:8px;'>"
                 f"· applied {_esc(app.get('date_applied') or '')}</span>"
                 f"</div>"
-                f"<div style='font-size:15px; font-weight:500; color:#e6edf3; margin-bottom:6px;'>"
+                f"<div class='myapps-title' style='font-size:15px; margin-bottom:6px;'>"
                 f"{_esc(app.get('job_title') or '')}"
                 f"</div>",
                 unsafe_allow_html=True,
@@ -980,7 +1024,7 @@ def _render_app_card(app: dict) -> None:
                 meta.append(f"follow-up: {_esc(app['follow_up_date'])}")
             if meta:
                 st.markdown(
-                    f"<div style='font-size:12px; color:#8b949e;'>{'  ·  '.join(meta)}</div>",
+                    f"<div class='myapps-meta'>{'  ·  '.join(meta)}</div>",
                     unsafe_allow_html=True,
                 )
 
@@ -1072,6 +1116,7 @@ def _render_app_card(app: dict) -> None:
 
 
 def _render_myapps_page(raw_apps: list) -> None:
+    st.markdown(_MYAPPS_CSS, unsafe_allow_html=True)
     st.title("My Applications")
 
     apps = [_row_to_dict(r) for r in (raw_apps or [])]
@@ -1427,9 +1472,20 @@ elif page == "📈  Scrape Health":
         if broken:
             names = ", ".join(_esc(b) for b in broken)
             st.markdown(
-                f'<div style="padding:10px 14px; margin-bottom:12px; '
-                f'border-left:3px solid #f85149; background:#3d0f10; '
-                f'border-radius:4px; color:#e6e6e6;">'
+                '<style>'
+                '.scrape-warn { padding:10px 14px; margin-bottom:12px; '
+                'border-left:3px solid #dc2626; background:#fef2f2; '
+                'border-radius:4px; color:#7f1d1d; }'
+                '.scrape-warn code { background:#fde68a; color:#7c2d12; '
+                'padding:1px 6px; border-radius:3px; }'
+                '@media (prefers-color-scheme: dark) {'
+                '  .scrape-warn { background:#3d0f10 !important; '
+                '    border-left-color:#f85149 !important; color:#fecaca !important; }'
+                '  .scrape-warn code { background:#3a1a1a !important; '
+                '    color:#fbbf24 !important; }'
+                '}'
+                '</style>'
+                f'<div class="scrape-warn">'
                 f'⚠️ <strong>{len(broken)} platform(s) added zero jobs across the last 3 runs:</strong> {names}. '
                 f'Likely bot-block or broken selectors. See <code>plans/015-diagnose-silent-scraper-failures.md</code>.'
                 f'</div>',
@@ -1455,8 +1511,10 @@ elif page == "📈  Scrape Health":
         df = df.iloc[::-1].reset_index(drop=True)
 
         def _highlight_zero(v):
+            # Streamlit dataframe renders in light theme; use a red-50/red-700
+            # tint with strong contrast so zero-yield cells jump out at a glance.
             if v == 0:
-                return "background-color:#3d0f10; color:#f85149;"
+                return "background-color:#fef2f2; color:#b91c1c; font-weight:600;"
             return ""
 
         styled = df.style.applymap(_highlight_zero, subset=platforms)

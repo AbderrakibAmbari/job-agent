@@ -578,7 +578,7 @@ def _scrape_platform(platform: str, days_window: int = 1, max_per_search: int = 
                     print(f"  [cookie] LinkedIn: loaded saved session cookies")
                 except Exception as e:
                     print(f"  [warn] LinkedIn: could not load cookies -- {e}")
-                    print(f"      Run: python login_linkedin.py")
+                    print(f"      Run: python scripts/login_linkedin.py")
 
             page = context.new_page()
             page.set_extra_http_headers({"User-Agent": random.choice(_USER_AGENTS)})

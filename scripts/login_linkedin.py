@@ -3,7 +3,7 @@ Run this once to save your LinkedIn session cookies.
 The scraper will reuse them on every run.
 
 Usage:
-    python login_linkedin.py
+    python scripts/login_linkedin.py
 """
 import json
 import os

@@ -6,7 +6,7 @@ and persists the matches to a local SQLite-backed dashboard.
 
 ## ✨ Features
 
-- 🔍 **Multi-platform scraper** — Indeed, Stepstone, XING, LinkedIn, Glassdoor (Playwright) + Arbeitsagentur (REST API), all run in parallel
+- 🔍 **Multi-platform scraper** — Stepstone, XING, LinkedIn, Glassdoor (Playwright) + Arbeitsagentur (REST API), all run in parallel
 - 🧹 **Smart pre-filter** — keyword reject pass kills senior/non-tech/extreme-experience postings before any LLM call
 - 🔗 **Live link validation** — checks each posting is still alive and reads the page body for hidden experience requirements
 - 🧠 **LLM scoring** — Claude Haiku 4.5 with prompt caching; hard caps for experience, seniority, and SAP roles
@@ -20,7 +20,7 @@ and persists the matches to a local SQLite-backed dashboard.
 | Layer | Tool |
 |---|---|
 | LLM | Claude Haiku 4.5 via `langchain-anthropic` |
-| Job sources | Indeed, Stepstone, XING, LinkedIn, Glassdoor, Arbeitsagentur |
+| Job sources | Stepstone, XING, LinkedIn, Glassdoor, Arbeitsagentur |
 | Scraping | Playwright (headless Chromium) + Requests |
 | Database | SQLite |
 | Dashboard | Streamlit |
@@ -94,7 +94,7 @@ Paste your CV as plain text in `my_cv.txt` (used by the scorer as the candidate 
 ### 6. (Optional) Log into LinkedIn
 LinkedIn blocks anonymous job searches behind an auth wall. To enable the LinkedIn scraper:
 ```bash
-python login_linkedin.py
+python scripts/login_linkedin.py
 ```
 This saves session cookies to `data/linkedin_cookies.json` (gitignored). The scraper reuses them on every run.
 
@@ -114,8 +114,6 @@ job-agent/
 ├── main.py                  # Interactive run entry point (per-run tee log)
 ├── run_daily.py             # Scriptable runner (also invokable manually)
 ├── dashboard.py             # Streamlit dashboard UI
-├── cleanup_duplicates.py    # One-off DB dedup utility
-├── login_linkedin.py        # Saves LinkedIn session cookies
 ├── my_cv.txt                # Your CV (gitignored)
 ├── .env                     # API key (gitignored)
 ├── requirements.txt
@@ -124,15 +122,16 @@ job-agent/
 │   ├── validator.py         # Live link + experience-in-body check
 │   ├── analyzer.py          # Claude scoring + quick-reject pre-filter
 │   ├── tracker.py           # SQLite persistence, dedup keys, backups
-│   ├── pipeline.py          # Shared scrape→validate→score→save pipeline
-│   └── feedback_log.py      # Append-only notes log for the dashboard
+│   └── pipeline.py          # Shared scrape→validate→score→save pipeline
+├── scripts/
+│   ├── backfill_from_gmail.py  # One-off Gmail backfill utility
+│   └── login_linkedin.py       # Saves LinkedIn session cookies
 ├── config/
 │   └── profile.yaml         # Profile/search config
 ├── data/                    # (gitignored)
 │   ├── applications.db      # SQLite store
 │   ├── backups/             # Rolling 30-day DB snapshots
 │   ├── linkedin_cookies.json
-│   ├── feedback_log.txt
 │   ├── scrape_log.txt       # Rotating scrape summaries
 │   ├── scheduler_log.txt    # run_daily.py log
 │   └── run_<stamp>.txt      # Full console log tee'd from each main.py run

@@ -12,6 +12,20 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 
+def _stale_run_logs(log_dir: Path, keep: int = 30) -> list[Path]:
+    """Return `data/run_*.txt` files past the `keep` newest, sorted oldest first.
+
+    Pure: does not delete anything. Caller is responsible for `.unlink()`.
+    Sorted by mtime descending; the oldest overflow files are returned.
+    """
+    files = sorted(
+        log_dir.glob("run_*.txt"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return files[keep:]
+
+
 # ── Tee logging: mirror every print()/stderr line to data/run_<stamp>.txt ──
 # Line-buffered so partial output survives Ctrl+C and crashes.
 class _Tee:
@@ -56,6 +70,12 @@ if __name__ == "__main__":
     print(f"📅 Run date: {RUN_DATE}")
     print(f"📝 Run log:  {_LOG_PATH}")
     print("=" * 60)
+
+    for stale in _stale_run_logs(_LOG_DIR, keep=30):
+        try:
+            stale.unlink()
+        except OSError:
+            pass  # File may have been rotated by a concurrent run — safe to ignore.
 
     try:
         matched = run_pipeline(min_score=70)

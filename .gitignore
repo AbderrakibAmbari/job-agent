@@ -26,6 +26,10 @@ __pycache__/
 # ── Claude Code session cache ────────────────────────
 .claude/
 
+# ── Live-smoke screenshots & Playwright cache ───────
+*.png
+.playwright-mcp/
+
 # ── Editor & OS ─────────────────────────────────────
 .vscode/
 Thumbs.db

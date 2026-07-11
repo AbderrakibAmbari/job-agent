@@ -45,6 +45,70 @@ def _safe_url(value) -> str:
         return s
     return ""
 
+
+# ── My Applications: pure helpers (Plan 023) ───────
+# Dark-mode palette — dark tinted background + saturated fg text.
+# Matches the existing region-badge convention (badge-west/north/east/south).
+_MYAPPS_STATUS_COLORS: dict[str, tuple[str, str]] = {
+    "Pending Review": ("#2d2d2d", "#c9d1d9"),
+    "Sent":           ("#1a3a5c", "#58a6ff"),
+    "Waiting":        ("#3a2e14", "#d29922"),
+    "Interview":      ("#2a1a4a", "#a78bfa"),
+    "Offer":          ("#1a3a2c", "#3fb950"),
+    "Rejected":       ("#3a1a1a", "#f85149"),
+}
+_MYAPPS_STATUS_ORDER = ["Pending Review", "Sent", "Waiting", "Interview", "Offer", "Rejected"]
+_MYAPPS_SORT_OPTIONS = ["Recently applied", "Oldest first", "Follow-up soonest", "Company A→Z"]
+
+
+def _status_badge_html(status: str) -> str:
+    """Render a status badge as an inline HTML span with the status palette.
+
+    Falls back to the Pending Review palette for unknown statuses.
+    """
+    bg, fg = _MYAPPS_STATUS_COLORS.get(status, _MYAPPS_STATUS_COLORS["Pending Review"])
+    return (
+        f'<span style="background:{bg}; color:{fg}; padding:2px 10px; '
+        f'border-radius:12px; font-size:12px; font-weight:600; '
+        f'white-space:nowrap;">{_esc(status)}</span>'
+    )
+
+
+def _apply_filters(apps: list, filters: dict) -> list:
+    """Filter + sort an application list (list of dicts). Pure — safe to test.
+
+    `filters` keys: status ("All" or one of _MYAPPS_STATUS_ORDER),
+    search (case-insensitive substring on company/title),
+    platform ("All" or platform name),
+    sort (one of _MYAPPS_SORT_OPTIONS).
+    """
+    out = list(apps)
+    status = filters.get("status", "All")
+    if status and status != "All":
+        out = [a for a in out if a.get("status") == status]
+    search = (filters.get("search") or "").strip().lower()
+    if search:
+        out = [
+            a for a in out
+            if search in (a.get("company") or "").lower()
+            or search in (a.get("job_title") or "").lower()
+        ]
+    platform = filters.get("platform", "All")
+    if platform and platform != "All":
+        out = [a for a in out if (a.get("platform") or "") == platform]
+
+    sort = filters.get("sort", _MYAPPS_SORT_OPTIONS[0])
+    if sort == "Recently applied":
+        out.sort(key=lambda a: a.get("date_applied") or "", reverse=True)
+    elif sort == "Oldest first":
+        out.sort(key=lambda a: a.get("date_applied") or "")
+    elif sort == "Follow-up soonest":
+        out.sort(key=lambda a: a.get("follow_up_date") or "9999-12-31")
+    elif sort == "Company A→Z":
+        out.sort(key=lambda a: (a.get("company") or "").lower())
+    return out
+
+
 # ── Init ───────────────────────────────────────────
 init_db()
 DB_PATH  = "data/applications.db"
@@ -701,166 +765,351 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
+
+# ══════════════════════════════════════════════════
+# MY APPLICATIONS — renderers (Plan 023)
+# ══════════════════════════════════════════════════
+
+_APP_COLS = [
+    "id", "company", "job_title", "platform", "date_applied",
+    "status", "cover_letter", "job_url", "follow_up_date",
+]
+
+
+def _row_to_dict(row) -> dict:
+    return {col: row[i] if i < len(row) else None for i, col in enumerate(_APP_COLS)}
+
+
+def _on_status_change(app_id: int) -> None:
+    new_status = st.session_state.get(f"myapps_status_{app_id}")
+    if not new_status:
+        return
+    update_status(app_id, new_status)
+    st.cache_data.clear()
+
+
+def _on_followup_change(app_id: int) -> None:
+    val = st.session_state.get(f"myapps_followup_{app_id}")
+    if not val:
+        return
+    update_followup_date(app_id, val.strftime("%Y-%m-%d"))
+    st.cache_data.clear()
+
+
+def _quick_flip_status(app_id: int, new_status: str) -> None:
+    update_status(app_id, new_status)
+    st.session_state.pop(f"myapps_status_{app_id}", None)
+    st.cache_data.clear()
+
+
+def _quick_snooze(app_id: int, days: int = 7) -> None:
+    today = datetime.now().strftime("%Y-%m-%d")
+    update_followup_date(app_id, default_followup_date(today, days))
+    st.session_state.pop(f"myapps_followup_{app_id}", None)
+    st.cache_data.clear()
+
+
+def _render_myapps_toolbar(apps: list) -> dict:
+    """Filter chips + search + platform + sort + CSV export. Returns filters dict."""
+    status_counts = {s: 0 for s in _MYAPPS_STATUS_ORDER}
+    platforms = set()
+    for a in apps:
+        s = a.get("status")
+        if s in status_counts:
+            status_counts[s] += 1
+        p = a.get("platform")
+        if p:
+            platforms.add(p)
+
+    chip_labels = [f"All  {len(apps)}"] + [f"{s}  {status_counts[s]}" for s in _MYAPPS_STATUS_ORDER]
+    label_to_status = {chip_labels[0]: "All"}
+    for s, label in zip(_MYAPPS_STATUS_ORDER, chip_labels[1:]):
+        label_to_status[label] = s
+
+    default_label = st.session_state.get("myapps_status_chip") or chip_labels[0]
+    if default_label not in chip_labels:
+        default_label = chip_labels[0]
+
+    chip = st.segmented_control(
+        "Filter by status",
+        options=chip_labels,
+        default=default_label,
+        key="myapps_status_chip",
+        label_visibility="collapsed",
+    ) or default_label
+    status = label_to_status.get(chip, "All")
+
+    c_search, c_platform, c_sort, c_export = st.columns([3, 2, 2, 1])
+    with c_search:
+        search = st.text_input(
+            "Search",
+            key="myapps_search",
+            placeholder="🔎 Search company or role",
+            label_visibility="collapsed",
+        )
+    with c_platform:
+        platform_options = ["All"] + sorted(platforms)
+        platform = st.selectbox(
+            "Platform",
+            platform_options,
+            key="myapps_platform_filter",
+            label_visibility="collapsed",
+        )
+    with c_sort:
+        sort = st.selectbox(
+            "Sort",
+            _MYAPPS_SORT_OPTIONS,
+            key="myapps_sort",
+            label_visibility="collapsed",
+        )
+    with c_export:
+        preview_filters = {"status": status, "search": search, "platform": platform, "sort": sort}
+        preview = _apply_filters(apps, preview_filters)
+        csv_bytes = pd.DataFrame(preview).to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇ CSV",
+            data=csv_bytes,
+            file_name=f"applications-{datetime.now().strftime('%Y-%m-%d')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="myapps_export_csv",
+        )
+
+    return {"status": status, "search": search, "platform": platform, "sort": sort}
+
+
+def _render_followup_section(due_apps: list) -> None:
+    show_key = "myapps_show_followups"
+    if show_key not in st.session_state:
+        st.session_state[show_key] = True
+
+    header_col, toggle_col = st.columns([5, 1])
+    with header_col:
+        st.markdown(
+            f'<div style="padding:12px 16px; margin:8px 0 6px 0; '
+            f'border-left:3px solid #d29922; background:#3a2e14; '
+            f'border-radius:6px; color:#f0c674; font-weight:600;">'
+            f'🔔 {len(due_apps)} follow-up{"s" if len(due_apps) > 1 else ""} due'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    with toggle_col:
+        st.markdown('<div style="margin-top:14px;"></div>', unsafe_allow_html=True)
+        label = "Hide" if st.session_state[show_key] else "Show"
+        if st.button(label, key="myapps_toggle_followups", use_container_width=True):
+            st.session_state[show_key] = not st.session_state[show_key]
+            st.rerun()
+
+    if st.session_state[show_key]:
+        for app in due_apps:
+            _render_followup_card(app)
+
+
+def _render_followup_card(app: dict) -> None:
+    app_id = app["id"]
+    date_applied = app.get("date_applied") or ""
+    try:
+        days_ago = (datetime.now().date() - datetime.strptime(date_applied, "%Y-%m-%d").date()).days
+    except (ValueError, TypeError):
+        days_ago = 0
+
+    with st.container(border=True):
+        head, badge = st.columns([4, 1])
+        with head:
+            st.markdown(
+                f"<div style='font-size:12px; color:#d29922; margin-bottom:4px;'>"
+                f"⏰ {days_ago}d ago · applied {_esc(date_applied)}"
+                f"</div>"
+                f"<div style='font-size:16px; font-weight:600; color:#e6edf3;'>"
+                f"{_esc(app.get('job_title') or '')}"
+                f" <span style='color:#8b949e; font-weight:400;'>@ {_esc(app.get('company') or '')}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        with badge:
+            st.markdown(
+                f"<div style='text-align:right; margin-top:2px;'>"
+                f"{_status_badge_html(app.get('status') or '')}</div>",
+                unsafe_allow_html=True,
+            )
+
+        b1, b2, b3, b4 = st.columns([1, 1, 1, 1])
+        with b1:
+            if st.button("✓ Interview", key=f"myapps_fu_int_{app_id}", use_container_width=True):
+                _quick_flip_status(app_id, "Interview")
+                st.rerun()
+        with b2:
+            if st.button("✗ Rejected", key=f"myapps_fu_rej_{app_id}", use_container_width=True):
+                _quick_flip_status(app_id, "Rejected")
+                st.rerun()
+        with b3:
+            if st.button("⏰ Snooze +7d", key=f"myapps_fu_snz_{app_id}", use_container_width=True):
+                _quick_snooze(app_id, 7)
+                st.rerun()
+        with b4:
+            safe = _safe_url(app.get("job_url"))
+            if safe:
+                st.link_button("Open ↗", safe, use_container_width=True)
+            else:
+                st.markdown("<div style='height:38px;'></div>", unsafe_allow_html=True)
+
+
+def _render_app_card(app: dict) -> None:
+    app_id = app["id"]
+    status = app.get("status") or ""
+    with st.container(border=True):
+        head, actions = st.columns([3, 2])
+        with head:
+            st.markdown(
+                f"<div style='margin-bottom:6px;'>"
+                f"{_status_badge_html(status)}"
+                f" <span style='margin-left:8px; font-size:14px; color:#c9d1d9; font-weight:600;'>"
+                f"{_esc(app.get('company') or '')}</span>"
+                f" <span style='color:#6e7681; font-size:12px; margin-left:8px;'>"
+                f"· applied {_esc(app.get('date_applied') or '')}</span>"
+                f"</div>"
+                f"<div style='font-size:15px; font-weight:500; color:#e6edf3; margin-bottom:6px;'>"
+                f"{_esc(app.get('job_title') or '')}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+            meta = []
+            if app.get("platform"):
+                meta.append(_esc(app["platform"]))
+            if app.get("follow_up_date"):
+                meta.append(f"follow-up: {_esc(app['follow_up_date'])}")
+            if meta:
+                st.markdown(
+                    f"<div style='font-size:12px; color:#8b949e;'>{'  ·  '.join(meta)}</div>",
+                    unsafe_allow_html=True,
+                )
+
+        with actions:
+            a1, a2, a3, a4 = st.columns([2, 2, 1, 1])
+            with a1:
+                status_key = f"myapps_status_{app_id}"
+                if status_key not in st.session_state:
+                    st.session_state[status_key] = (
+                        status if status in STATUS_OPTIONS else STATUS_OPTIONS[0]
+                    )
+                st.selectbox(
+                    "Status",
+                    STATUS_OPTIONS,
+                    key=status_key,
+                    on_change=_on_status_change,
+                    args=(app_id,),
+                    label_visibility="collapsed",
+                )
+            with a2:
+                fu_key = f"myapps_followup_{app_id}"
+                if fu_key not in st.session_state:
+                    fu_val = app.get("follow_up_date")
+                    try:
+                        st.session_state[fu_key] = (
+                            datetime.strptime(fu_val, "%Y-%m-%d").date()
+                            if fu_val else datetime.now().date()
+                        )
+                    except (ValueError, TypeError):
+                        st.session_state[fu_key] = datetime.now().date()
+                st.date_input(
+                    "Follow-up",
+                    key=fu_key,
+                    on_change=_on_followup_change,
+                    args=(app_id,),
+                    label_visibility="collapsed",
+                )
+            with a3:
+                safe = _safe_url(app.get("job_url"))
+                if safe:
+                    st.link_button("🔗", safe, use_container_width=True)
+                else:
+                    st.markdown("<div style='height:38px;'></div>", unsafe_allow_html=True)
+            with a4:
+                with st.popover("⋯", use_container_width=True):
+                    if app.get("cover_letter"):
+                        with st.expander("Cover letter", expanded=False):
+                            st.text_area(
+                                "Cover letter body",
+                                value=app["cover_letter"],
+                                height=180,
+                                key=f"myapps_cl_{app_id}",
+                                label_visibility="collapsed",
+                            )
+                    else:
+                        st.caption("No cover letter saved.")
+
+                    confirm_key = f"myapps_delete_confirm_{app_id}"
+                    if st.session_state.get(confirm_key):
+                        st.warning("Delete this application?")
+                        d1, d2 = st.columns(2)
+                        with d1:
+                            if st.button(
+                                "Yes, delete",
+                                key=f"myapps_del_yes_{app_id}",
+                                use_container_width=True,
+                                type="primary",
+                            ):
+                                delete_application(app_id)
+                                st.session_state[confirm_key] = False
+                                st.cache_data.clear()
+                                st.rerun()
+                        with d2:
+                            if st.button(
+                                "Cancel",
+                                key=f"myapps_del_no_{app_id}",
+                                use_container_width=True,
+                            ):
+                                st.session_state[confirm_key] = False
+                                st.rerun()
+                    else:
+                        if st.button(
+                            "🗑️ Delete application",
+                            key=f"myapps_del_ask_{app_id}",
+                            use_container_width=True,
+                        ):
+                            st.session_state[confirm_key] = True
+                            st.rerun()
+
+
+def _render_myapps_page(raw_apps: list) -> None:
+    st.title("My Applications")
+
+    apps = [_row_to_dict(r) for r in (raw_apps or [])]
+
+    if not apps:
+        st.info("📭 No applications yet. Run `python main.py` to start!")
+        return
+
+    filters = _render_myapps_toolbar(apps)
+
+    due_rows = load_due_followups()
+    if due_rows:
+        due_apps = [_row_to_dict(r) for r in due_rows]
+        _render_followup_section(due_apps)
+
+    filtered = _apply_filters(apps, filters)
+
+    st.markdown(
+        f'<div style="margin: 24px 0 10px 0; font-size:11px; '
+        f'color:#8b949e; text-transform:uppercase; letter-spacing:1px;">'
+        f'{len(filtered)} of {len(apps)} applications'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    if not filtered:
+        st.info("Nothing matches these filters. Try clearing search or picking a different status chip.")
+        return
+
+    for app in filtered:
+        _render_app_card(app)
+
+
 # ══════════════════════════════════════════════════
 # PAGE 1 — MY APPLICATIONS
 # ══════════════════════════════════════════════════
 if page == "📊  My Applications":
-
-    st.title("My Applications")
-    st.markdown("---")
-
-    # ── Follow-up due (Plan 009) ──────────────────────
-    due = load_due_followups()
-    if due:
-        st.markdown(
-            f'<div style="padding:10px 14px; margin-bottom:12px; '
-            f'border-left:3px solid #d29922; background:#332b00; '
-            f'border-radius:4px; color:#e6e6e6;">'
-            f'🔔 <strong>{len(due)} follow-up{"s" if len(due) > 1 else ""} due</strong> '
-            f'— applications waiting on a reply past their follow-up date.'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-        with st.expander(f"Show {len(due)} due follow-up(s)", expanded=False):
-            for r in due:
-                app_id, company, job_title, platform, date_applied, status, _cover, job_url, follow_up = r
-                days_since = (
-                    datetime.now().date() - datetime.strptime(date_applied, "%Y-%m-%d").date()
-                ).days if date_applied else 0
-
-                fu_cols = st.columns([3, 1, 1, 1, 1])
-                with fu_cols[0]:
-                    safe = _safe_url(job_url) if job_url else ""
-                    link_html = (
-                        f' <a href="{safe}" target="_blank" style="color:#58a6ff; '
-                        f'font-size:12px; text-decoration:none;">↗</a>'
-                        if safe else ""
-                    )
-                    st.markdown(
-                        f"**{_esc(company)}** — {_esc(job_title)}  "
-                        f"<span style='color:#8b949e;font-size:12px;'>"
-                        f"({days_since}d ago · {_esc(status)}){link_html}"
-                        f"</span>",
-                        unsafe_allow_html=True,
-                    )
-                with fu_cols[1]:
-                    if st.button("Interview", key=f"fu_int_{app_id}"):
-                        update_status(app_id, "Interview")
-                        st.cache_data.clear()
-                        st.rerun()
-                with fu_cols[2]:
-                    if st.button("Rejected", key=f"fu_rej_{app_id}"):
-                        update_status(app_id, "Rejected")
-                        st.cache_data.clear()
-                        st.rerun()
-                with fu_cols[3]:
-                    if st.button("Snooze +7d", key=f"fu_snz_{app_id}"):
-                        today = datetime.now().strftime("%Y-%m-%d")
-                        update_followup_date(app_id, default_followup_date(today))
-                        st.cache_data.clear()
-                        st.rerun()
-                with fu_cols[4]:
-                    st.markdown(
-                        f"<span style='color:#8b949e;font-size:11px;'>due {_esc(follow_up)}</span>",
-                        unsafe_allow_html=True,
-                    )
-        st.markdown("---")
-
-    col1, col2, col3, col4, col5 = st.columns(5)
-    df_apps = pd.DataFrame(apps, columns=[
-        "id", "company", "job_title", "platform",
-        "date_applied", "status", "cover_letter",
-        "job_url", "follow_up_date"
-    ]) if apps else pd.DataFrame()
-
-    with col1: st.metric("Total",     len(df_apps))
-    with col2: st.metric("Sent",      len(df_apps[df_apps["status"] == "Sent"])      if not df_apps.empty else 0)
-    with col3: st.metric("Waiting",   len(df_apps[df_apps["status"] == "Waiting"])   if not df_apps.empty else 0)
-    with col4: st.metric("Interview", len(df_apps[df_apps["status"] == "Interview"]) if not df_apps.empty else 0)
-    with col5: st.metric("Offer",     len(df_apps[df_apps["status"] == "Offer"])     if not df_apps.empty else 0)
-
-    st.markdown("---")
-
-    if df_apps.empty:
-        st.info("📭 No applications yet. Run `python main.py` to start!")
-    else:
-        col_f1, col_f2 = st.columns([1, 3])
-        with col_f1:
-            filter_status = st.selectbox("Filter by status", ["All"] + STATUS_OPTIONS)
-        with col_f2:
-            search = st.text_input("🔍 Search company or role", "")
-
-        filtered = df_apps.copy()
-        if filter_status != "All":
-            filtered = filtered[filtered["status"] == filter_status]
-        if search:
-            mask = (
-                filtered["company"].str.contains(search, case=False, na=False) |
-                filtered["job_title"].str.contains(search, case=False, na=False)
-            )
-            filtered = filtered[mask]
-
-        st.markdown(f"**Showing {len(filtered)} application(s)**")
-        st.markdown("---")
-
-        for _, row in filtered.iterrows():
-            icon = STATUS_COLORS.get(row["status"], "⚪")
-            with st.expander(
-                f"{icon} {row['company']} — {row['job_title']} | 📅 {row['date_applied']}"
-            ):
-                col_info, col_actions = st.columns([2, 1])
-                with col_info:
-                    st.markdown(f"**Company** &nbsp; {_esc(row['company'])}", unsafe_allow_html=True)
-                    st.markdown(f"**Role** &nbsp; {_esc(row['job_title'])}", unsafe_allow_html=True)
-                    st.markdown(f"**Platform** &nbsp; {_esc(row['platform'])}", unsafe_allow_html=True)
-                    st.markdown(f"**Applied** &nbsp; {_esc(row['date_applied'])}", unsafe_allow_html=True)
-                    st.markdown(f"**Status** &nbsp; {icon} {_esc(row['status'])}", unsafe_allow_html=True)
-                    safe = _safe_url(row["job_url"])
-                    if safe:
-                        st.markdown(f"**Link** &nbsp; [Open job posting]({safe})", unsafe_allow_html=True)
-
-                with col_actions:
-                    new_status = st.selectbox(
-                        "Update status", STATUS_OPTIONS,
-                        index=STATUS_OPTIONS.index(row["status"])
-                              if row["status"] in STATUS_OPTIONS else 0,
-                        key=f"status_{row['id']}"
-                    )
-                    if st.button("💾 Save", key=f"save_{row['id']}"):
-                        update_status(row["id"], new_status)
-                        st.cache_data.clear()
-                        st.success(f"Updated to: {new_status}")
-                        st.rerun()
-                    if st.button("🗑️ Delete", key=f"del_{row['id']}"):
-                        delete_application(row["id"])
-                        st.cache_data.clear()
-                        st.warning("Deleted.")
-                        st.rerun()
-
-                    # ── Follow-up date (Plan 009) ──
-                    fu_col1, fu_col2 = st.columns([3, 1])
-                    with fu_col1:
-                        new_fu = st.date_input(
-                            "Follow-up date",
-                            value=(
-                                datetime.strptime(row["follow_up_date"], "%Y-%m-%d").date()
-                                if row["follow_up_date"] else datetime.now().date()
-                            ),
-                            key=f"fu_date_{row['id']}",
-                        )
-                    with fu_col2:
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        if st.button("Save follow-up", key=f"fu_save_{row['id']}"):
-                            update_followup_date(row["id"], new_fu.strftime("%Y-%m-%d"))
-                            st.cache_data.clear()
-                            st.success(f"Follow-up set to {new_fu}")
-                            st.rerun()
-
-                if row["cover_letter"]:
-                    st.markdown("---")
-                    st.markdown("**Cover Letter**")
-                    st.text_area("Cover Letter", value=row["cover_letter"], height=200,
-                                 key=f"cl_{row['id']}", label_visibility="collapsed")
+    _render_myapps_page(apps)
 
 # ══════════════════════════════════════════════════
 # PAGE 2 — TODAY'S MATCHES

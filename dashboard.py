@@ -22,12 +22,6 @@ from dashboard_pages._shared import (
 )
 from dashboard_pages.myapps import _render_myapps_page
 from dashboard_pages.matches_v2 import _render_matches_v2
-# Temporary shim: keep test imports green until Step 6 repoints tests.
-from dashboard_pages.myapps import (  # noqa: F401
-    _status_badge_html,
-    _apply_filters,
-    _MYAPPS_STATUS_COLORS,
-)
 
 
 # ── Init ───────────────────────────────────────────

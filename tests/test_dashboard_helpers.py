@@ -1,8 +1,7 @@
 import pytest
 
-from dashboard import (
-    _esc,
-    _safe_url,
+from dashboard_pages._shared import _esc, _safe_url
+from dashboard_pages.myapps import (
     _status_badge_html,
     _apply_filters,
     _MYAPPS_STATUS_COLORS,

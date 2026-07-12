@@ -61,3 +61,54 @@ def render_date_chips(state_key: str, source: str, label: str, max_chips: int = 
                     st.rerun()
 
     return st.session_state[state_key].strftime("%Y-%m-%d")
+
+
+# ── V2/Not Matched shared visual helpers ──────────
+# Consumed by both dashboard_pages.matches_v2._render_job_detail_right and
+# dashboard.py's Not Matched page, so they live here rather than in either
+# page module. REGION_BADGE is a private detail of get_region_badge.
+REGION_BADGE = {
+    # West
+    "nordrhein": ("NRW",     "badge-west"),
+    "westfalen": ("NRW",     "badge-west"),
+    "nrw":       ("NRW",     "badge-west"),
+    "hessen":    ("Hessen",  "badge-west"),
+    "rheinland": ("RLP",     "badge-west"),
+    "pfalz":     ("RLP",     "badge-west"),
+    "saarland":  ("Saar",    "badge-west"),
+    # North
+    "hamburg":        ("HH",  "badge-north"),
+    "bremen":         ("HB",  "badge-north"),
+    "niedersachsen":  ("NDS", "badge-north"),
+    "schleswig":      ("SH",  "badge-north"),
+    "holstein":       ("SH",  "badge-north"),
+    # East
+    "berlin":            ("Berlin", "badge-east"),
+    "brandenburg":       ("BB",     "badge-east"),
+    "mecklenburg":       ("MV",     "badge-east"),
+    "vorpommern":        ("MV",     "badge-east"),
+    "sachsen-anhalt":    ("ST",     "badge-east"),
+    "sachsen anhalt":    ("ST",     "badge-east"),
+    "thüringen":         ("TH",     "badge-east"),
+    "sachsen":           ("SN",     "badge-east"),
+    # South
+    "bayern":           ("Bayern", "badge-south"),
+    "münchen":          ("Bayern", "badge-south"),
+    "baden-württemberg":("BaWü",   "badge-south"),
+    "baden württemberg":("BaWü",   "badge-south"),
+    "württemberg":      ("BaWü",   "badge-south"),
+}
+
+
+def get_region_badge(location: str) -> str:
+    loc_lower = location.lower()
+    for key, (label, css) in REGION_BADGE.items():
+        if key in loc_lower:
+            return f'<span class="badge {css}">{label}</span>'
+    return f'<span class="badge badge-other">{_esc(location[:15])}</span>'
+
+
+def get_score_color(score: int) -> str:
+    if score >= 85: return "#3fb950"
+    if score >= 70: return "#f0883e"
+    return "#f85149"

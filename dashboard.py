@@ -1,17 +1,15 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
 from datetime import datetime
 from nodes.tracker import (
     init_db, get_all_applications, get_matched_jobs,
-    get_applied_status, get_applied_statuses,
+    get_applied_statuses,
     get_not_matched_jobs, get_scrape_dates,
     promote_not_matched_to_matched,
 )
 from nodes.scrape_log_parser import (
     parse_scrape_log, platform_history, broken_platforms, top_terms_aggregated,
 )
-import os
 
 from dashboard_pages._shared import (
     _esc,
@@ -218,15 +216,6 @@ st.markdown("""
 
 # ── Status config ──────────────────────────────────
 # STATUS_OPTIONS moved to dashboard_pages/myapps.py (Plan 027 Step 4).
-# STATUS_COLORS below is currently unused; kept in place for a future cleanup.
-STATUS_COLORS = {
-    "Pending Review": "⏳",
-    "Sent":           "🔵",
-    "Waiting":        "🟡",
-    "Interview":      "🟢",
-    "Rejected":       "🔴",
-    "Offer":          "⭐"
-}
 
 
 # ══════════════════════════════════════════════════
